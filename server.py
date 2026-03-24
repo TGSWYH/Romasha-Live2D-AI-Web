@@ -659,7 +659,7 @@ async def romasha_endpoint(websocket: WebSocket):
 
             if state["vision_idle_seconds"] == 300:
                 await websocket.send_json({"action": "tracking", "state": False})
-                idx = motion_manager.get_motion_index('wait_haji')
+                idx = motion_manager.get_motion_index('talk')
                 await websocket.send_json({"action": "idle_motion", "group": "BaseMotions", "index": idx})
 
                 if state["vision_sleep_count"] == 0:
