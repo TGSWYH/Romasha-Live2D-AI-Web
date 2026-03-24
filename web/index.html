@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Romasha Mobile</title>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://unpkg.com/pixi.js@6.5.2/dist/browser/pixi.min.js"></script>
+    <script src="https://unpkg.com/pixi-live2d-display/dist/cubism4.min.js"></script>
+    <style>
+        body { 
+            margin: 0; padding: 0; overflow: hidden; 
+            background-color: #f0f0f0;
+            background-image: url('https://bpic.588ku.com/video_listen/588ku_pic/22/01/26/f612d165647210435bd8feaddb4dbb1d.jpg');
+            background-size: cover; background-position: center;
+        }
+        
+        canvas { display: block; touch-action: none; outline: none; }
+
+        
+        .side-btn {
+            position: fixed; width: 50px; height: 50px; border-radius: 25px;
+            background: rgba(255, 182, 193, 0.8); backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 2px solid white; color: white; font-size: 24px; line-height: 50px; text-align: center;
+            z-index: 99; transition: transform 0.2s, bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none;
+        }
+        .side-btn:active { transform: scale(0.9); }
+
+        
+        #touch-toggle-btn { left: 20px; bottom: 90px; }
+        #gyro-toggle-btn { left: 20px; bottom: 30px; }
+
+        
+        #reset-btn { right: 20px; bottom: 90px; }
+        #chat-toggle-btn { right: 20px; bottom: 30px; }
+
+        
+        #voice-toggle-btn { left: 20px; bottom: 150px; }
+        #size-toggle-btn { right: 20px; bottom: 150px; }
+
+        
+        body.input-active #reset-btn { bottom: 140px; }
+        body.input-active #chat-toggle-btn { bottom: 80px; }
+        
+        body.input-active #size-toggle-btn { bottom: 200px; }
+
+        :root {
+            --bubble-base-size: 14px;
+            --sub-font-size: 12px;
+        }
+
+        #chat-bubble {
+            position: absolute; background: rgba(255, 255, 255, 0.95);
+            border: 2px solid #ffb6c1; border-radius: 15px; padding: 10px 15px; 
+            box-sizing: border-box;
+            
+            max-width: min(85vw, 320px);
+            width: max-content;
+            max-height: 200px; overflow-y: auto; pointer-events: auto;
+            word-wrap: break-word; line-height: 1.5; font-family: 'Microsoft YaHei', sans-serif;
+            font-size: var(--bubble-base-size); 
+            color: #333; box-shadow: 0px 4px 15px rgba(0,0,0,0.15);
+            transition: opacity 0.3s; opacity: 0; z-index: 100; transform: translate(-50%, -100%);
+        }
+        #chat-bubble::-webkit-scrollbar { width: 4px; }
+        #chat-bubble::-webkit-scrollbar-track { background: transparent; }
+        #chat-bubble::-webkit-scrollbar-thumb { background: #ffb6c1; border-radius: 2px; }
+        #chat-bubble::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; margin-left: -10px;
+            border-width: 10px 10px 0; border-style: solid; border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
+        }
+
+        #input-container {
+            position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%);
+            z-index: 100; transition: bottom 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: 90vw; display: flex; gap: 10px;
+        }
+        #input-container.active { bottom: 20px; }
+
+        #chat-input {
+            flex-grow: 1; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 20px; padding: 12px 20px; color: white; font-size: 16px;
+            outline: none; backdrop-filter: blur(10px);
+            
+            resize: none; 
+            overflow-y: hidden; 
+            line-height: 20px;
+            max-height: 100px; 
+            font-family: inherit; 
+            box-sizing: border-box;
+            height: 46px; 
+        }
+        #chat-input::placeholder { color: rgba(255, 255, 255, 0.8); }
+
+        #send-btn {
+            background: #ffb6c1; border: none; border-radius: 50%; width: 45px; height: 45px;
+            color: white; font-weight: bold; display: flex; justify-content: center; align-items: center;
+        }
+
+        #chat-toggle-btn {
+            position: fixed; right: 20px; bottom: 30px; width: 50px; height: 50px; border-radius: 25px;
+            background: rgba(255, 182, 193, 0.8); backdrop-filter: blur(5px); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border: 2px solid white; color: white; font-size: 24px; line-height: 50px; text-align: center;
+            z-index: 99; transition: transform 0.2s; user-select: none;
+        }
+        #chat-toggle-btn:active { transform: scale(0.9); }
+
+        #ws-status {
+            position: fixed; top: 10px; left: 10px; width: 10px; height: 10px;
+            border-radius: 50%; background-color: red; z-index: 1000;
+        }
+
+        
+        #error-log {
+            position: fixed; top: 30px; left: 10px; right: 10px; background: rgba(255,0,0,0.8);
+            color: white; padding: 10px; border-radius: 5px; font-size: 12px; z-index: 9999; display: none;
+        }
+
+        
+        #terminal-box {
+            position: fixed; top: 10px; left: 10px;
+            width: 85vw; max-width: 350px; height: 35vh;
+            background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px);
+            color: #4ade80; font-family: 'Consolas', monospace; font-size: 11px;
+            padding: 10px; border-radius: 8px; border: 1px solid rgba(74, 222, 128, 0.4);
+            overflow-y: auto; z-index: 1000; pointer-events: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: none; 
+            word-wrap: break-word; line-height: 1.4;
+        }
+        #terminal-box.active { display: block; }
+        #terminal-box::-webkit-scrollbar { width: 4px; }
+        #terminal-box::-webkit-scrollbar-thumb { background: #4ade80; border-radius: 2px; }
+
+      
+        #story-board {
+            position: absolute; top: 75px; left: 50%; transform: translateX(-50%);
+            width: 95vw; max-width: 500px; height: 75vh;
+            background: rgba(255, 255, 255, 0.25); 
+            border: 1px solid rgba(255, 182, 193, 0.4);
+            border-radius: 12px; z-index: 150; display: none; flex-direction: column;
+            padding: 15px; box-sizing: border-box; box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            backdrop-filter: blur(2px);
+        }
+
+        
+        #story-history {
+            flex: 5; overflow-y: auto;
+            background: rgba(255, 255, 255, 0.35); 
+            border: 1px solid rgba(221, 221, 221, 0.4);
+            border-radius: 8px; padding: 10px; margin-bottom: 10px;
+            font-family: 'Microsoft YaHei', sans-serif; font-size: 14px; color: #222; line-height: 1.5;
+            text-shadow: 0px 0px 2px rgba(255,255,255,0.8); 
+        }
+        #story-current {
+            flex: 3; overflow-y: auto;
+            background: rgba(255, 255, 255, 0.45); 
+            border: 1px solid rgba(255, 182, 193, 0.5);
+            border-radius: 8px; padding: 10px;
+            font-family: 'Microsoft YaHei', sans-serif; font-size: 15px; line-height: 1.6;
+        }
+
+        
+        .story-option-btn {
+            background: rgba(255, 255, 255, 0.55); 
+            border: 1px solid rgba(221, 221, 221, 0.4);
+            border-radius: 5px; padding: 12px; text-align: left; cursor: pointer;
+            font-family: 'Microsoft YaHei'; font-size: 14px; color: #333;
+            transition: all 0.2s; backdrop-filter: blur(2px);
+        }
+        .story-option-btn:hover { background: rgba(255, 240, 245, 0.8); border-color: #ffb6c1; }
+        .story-option-btn:active { background: rgba(255, 228, 225, 0.8); }
+    </style>
+</head>
+<body oncontextmenu="return false;">
+
+    <div id="error-log"></div>
+    <div id="ws-status"></div>
+    <div id="terminal-box"></div> <div id="chat-bubble"></div>
+
+    <button id="story-toggle-btn" style="position: absolute; top: 20px; right: 20px; z-index: 200; padding: 10px 15px; background: rgba(255, 255, 255, 0.9); border: 2px solid #6031e2; border-radius: 8px; font-weight: bold; color: #6031e2; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        📖 展开剧情推演
+    </button>
+
+    <div id="story-board">
+        <div style="font-weight: bold; color: #555; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <span>📖 命运推演 <span id="story-status" style="color: #e74c3c; font-size: 12px; margin-left: 5px;"></span></span>
+            <div style="display: flex; gap: 6px; align-items: center;">
+                <select id="story-level" style="background: rgba(255,255,255,0.9); border: 1px solid #ffb6c1; border-radius: 5px; padding: 4px; font-size: 12px; color: #6031e2; font-weight: bold; outline: none;">
+                    <option value="0">参与度 0</option>
+                    <option value="1">参与度 1</option>
+                    <option value="2" selected>参与度 2</option>
+                    <option value="3">参与度 3</option>
+                </select>
+                <button id="story-name-btn" style="background: rgba(255, 182, 193, 0.9); color: white; border: none; border-radius: 5px; padding: 5px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">👤 未命名</button>
+                <button id="story-action-btn" style="background: rgba(46, 204, 113, 0.9); color: white; border: none; border-radius: 5px; padding: 5px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">▶ 开始</button>
+                <button id="story-download-btn" style="background: rgba(52, 152, 219, 0.9); color: white; border: none; border-radius: 5px; padding: 5px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">💾 下载</button>
+                <button id="story-exit-btn" style="background: rgba(149, 165, 166, 0.9); color: white; border: none; border-radius: 5px; padding: 5px 8px; font-weight: bold; cursor: pointer; font-size: 12px;">🚪 退出</button>
+            </div>
+        </div>
+
+        <div id="story-history"></div>
+        <div id="story-current"></div>
+        <div id="story-options" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px;"></div>
+        <div id="story-progress-container" style="display: none; width: 100%; height: 6px; background: rgba(233, 236, 239, 0.6); border-radius: 3px; margin-top: 10px;">
+            <div id="story-progress-bar" style="width: 100%; height: 100%; background: #ffb6c1; border-radius: 3px; transition: width 0.1s linear;"></div>
+        </div>
+    </div>
+
+    <div id="input-container">
+        <textarea id="chat-input" placeholder="对她说点什么..." rows="1"></textarea>
+        <div id="send-btn">发送</div>
+    </div>
+
+    <div id="reset-btn" class="side-btn">🔄</div>
+    <div id="chat-toggle-btn" class="side-btn">💬</div>
+    <div id="touch-toggle-btn" class="side-btn">👆</div>
+    <div id="gyro-toggle-btn" class="side-btn">👁️</div>
+
+    <div id="voice-toggle-btn" class="side-btn">🔊</div>
+    <div id="size-toggle-btn" class="side-btn">中</div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        
+        
+        
+        window.setBubbleSize = function(sizeVal) {
+            const root = document.documentElement;
+            if (sizeVal === 0) {
+                root.style.setProperty('--bubble-base-size', '12px');
+                root.style.setProperty('--sub-font-size', '10px');
+            } else if (sizeVal === 2) {
+                root.style.setProperty('--bubble-base-size', '16px');
+                root.style.setProperty('--sub-font-size', '14px');
+            } else { 
+                root.style.setProperty('--bubble-base-size', '14px');
+                root.style.setProperty('--sub-font-size', '12px');
+            }
+            
+            localStorage.setItem('romasha_bubbleSize', sizeVal);
+        };
+
+        
+        let savedSize = parseInt(localStorage.getItem('romasha_bubbleSize'));
+        if (isNaN(savedSize)) savedSize = 1;
+        window.setBubbleSize(savedSize);
+
+        
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            const errDiv = document.getElementById('error-log');
+            errDiv.style.display = 'block';
+            errDiv.innerHTML += `🚨 ${msg} (Line: ${lineNo})<br>`;
+            return false;
+        };
+
+        
+        
+        
+        const storyToggleBtn = document.getElementById('story-toggle-btn');
+        const storyBoard = document.getElementById('story-board');
+        const storyHistory = document.getElementById('story-history');
+        const storyCurrent = document.getElementById('story-current');
+        const storyOptions = document.getElementById('story-options');
+        const storyProgressContainer = document.getElementById('story-progress-container');
+        const storyProgressBar = document.getElementById('story-progress-bar');
+        const storyStatus = document.getElementById('story-status');
+        const storyNameBtn = document.getElementById('story-name-btn');
+        const storyActionBtn = document.getElementById('story-action-btn');
+        const storyDownloadBtn = document.getElementById('story-download-btn'); 
+        const storyLevelSelector = document.getElementById('story-level');
+        const storyExitBtn = document.getElementById('story-exit-btn'); 
+
+        let storyModeActive = false;
+        let countdownTimer = null;
+        let timeLeft = 0;
+        let isGeneratingStory = false; 
+        let hasStoryStarted = false;   
+
+        let storyHardExited = false;
+        
+        function clearStoryPanel() {
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+
+            hasStoryStarted = false;
+            isGeneratingStory = false;
+
+            storyActionBtn.innerText = "▶ 开始";
+            storyActionBtn.style.background = "rgba(46, 204, 113, 0.9)";
+            storyStatus.innerText = '';
+
+            storyHistory.innerHTML = '';
+            storyCurrent.innerHTML = '';
+
+            storyOptions.innerHTML = '';
+            storyOptions.style.display = 'none';
+
+            storyProgressContainer.style.display = 'none';
+            storyProgressBar.style.width = '100%';
+            storyProgressBar.style.background = '#ffb6c1';
+        }
+
+        
+        let cachedName = localStorage.getItem("romasha_playerName");
+        if (cachedName) storyNameBtn.innerText = `👤 ${cachedName}`;
+
+        
+        storyNameBtn.addEventListener('click', () => {
+            let newName = prompt("请输入你在这个世界中的名字：", localStorage.getItem("romasha_playerName") || "墨旅");
+            if (newName && newName.trim() !== "") {
+                localStorage.setItem("romasha_playerName", newName);
+                storyNameBtn.innerText = `👤 ${newName}`;
+                if(ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({type: "chat", text: "[set_name_" + newName + "]"}));
+                }
+            }
+        });
+
+        
+        storyExitBtn.addEventListener('click', () => {
+            if (confirm("确定要彻底结束本次命运推演，让她回归日常模式吗？\n（当前的推演进度将不会保留在面板上，但已存入本地日志）")) {
+                storyHardExited = true;
+                
+                if(ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({type: "chat", text: "/choice /EXIT_STORY_MODE"}));
+                }
+
+                
+                clearStoryPanel();
+
+                
+                storyBoard.style.display = 'none';
+                storyModeActive = false;
+                storyToggleBtn.innerText = '📖 展开剧情推演';
+            }
+        });
+
+        
+        
+        storyToggleBtn.addEventListener('click', () => {
+            storyModeActive = !storyModeActive;
+
+            if (storyModeActive){
+                
+                let playerName = localStorage.getItem("romasha_playerName");
+                if (!playerName) {
+                    playerName = prompt("请输入你在这个世界中的名字：", "墨旅");
+                    if (!playerName || playerName.trim() === "") { storyModeActive = false; return; }
+                    localStorage.setItem("romasha_playerName", playerName);
+                    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "chat", text: "[set_name_" + playerName + "]"}));
+                    
+                    storyNameBtn.innerText = `👤 ${playerName}`;
+                }
+                
+                storyBoard.style.display = 'flex';
+                storyToggleBtn.innerText = '✖ 收起面板';
+
+                
+                const terminalBox = document.getElementById('terminal-box');
+                if (terminalBox && terminalBox.classList.contains('active')) {
+                    terminalBox.classList.remove('active');
+                    terminalOpen = false;
+                    localStorage.setItem('romasha_terminalOpen', 'false');
+                    if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "terminal_cmd", state: false, init: false}));
+                }
+            } else {
+                storyBoard.style.display = 'none';
+                storyToggleBtn.innerText = '📖 展开剧情推演';
+            }
+        });
+
+        
+        
+            
+                
+
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+
+            
+                    
+                
+            
+        
+
+        
+        storyDownloadBtn.addEventListener('click', () => {
+            window.open('/download_novel', '_blank'); 
+        });
+
+        
+        storyActionBtn.addEventListener('click', () => {
+            if (!hasStoryStarted) {
+                
+                let level = storyLevelSelector.value;
+                hasStoryStarted = true;
+                isGeneratingStory = true;
+                storyActionBtn.innerText = "🛑 停止";
+                storyActionBtn.style.background = "rgba(231, 76, 60, 0.9)";
+                storyStatus.innerText = '推演中...';
+                storyStatus.style.color = '#e74c3c';
+                if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "chat", text: "/auto " + level}));
+            } else if (isGeneratingStory) {
+                
+                isGeneratingStory = false;
+                storyActionBtn.innerText = "▶ 继续";
+                storyActionBtn.style.background = "rgba(46, 204, 113, 0.9)";
+                storyStatus.innerText = '已暂停';
+                storyStatus.style.color = '#d35400';
+                if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "chat", text: "/choice /CANCEL_GENERATION"}));
+            } else {
+                
+                isGeneratingStory = true;
+                storyActionBtn.innerText = "🛑 停止";
+                storyActionBtn.style.background = "rgba(231, 76, 60, 0.9)";
+                storyStatus.innerText = '推演中...';
+                storyStatus.style.color = '#e74c3c';
+                if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: "chat", text: "/choice *(顺应局势，继续推进剧情)*"}));
+            }
+        });
+
+        
+        window.renderStoryOptions = function(optionsTextArray) {
+            storyOptions.innerHTML = '';
+            storyOptions.style.display = 'flex';
+            storyProgressContainer.style.display = 'block';
+
+            if (storyStatus) {
+                storyStatus.innerText = '请抉择...';
+                storyStatus.style.color = '#2ecc71';
+            }
+
+            
+            optionsTextArray.forEach(optText => {
+                let btn = document.createElement('button');
+                btn.innerText = optText;
+                btn.className = 'story-option-btn';
+                btn.onclick = () => window.submitStoryChoice(optText);
+                storyOptions.appendChild(btn);
+            });
+
+            
+            let customDiv = document.createElement('div');
+            customDiv.style.display = 'flex';
+            customDiv.style.gap = '8px';
+            customDiv.style.marginTop = '5px';
+
+            let customInput = document.createElement('input');
+            customInput.type = 'text';
+            customInput.placeholder = '✍️ 都不满意？输入你自己的抉择...';
+            customInput.style.flex = '1';
+            customInput.style.padding = '10px 12px';
+            customInput.style.borderRadius = '5px';
+            customInput.style.border = '1px solid rgba(255, 182, 193, 0.8)';
+            customInput.style.background = 'rgba(255, 255, 255, 0.6)';
+            customInput.style.outline = 'none';
+            customInput.style.fontFamily = "'Microsoft YaHei', sans-serif";
+            customInput.style.fontSize = '14px';
+
+            let customBtn = document.createElement('button');
+            customBtn.innerText = '执行';
+            customBtn.style.padding = '10px 15px';
+            customBtn.style.background = 'rgba(255, 182, 193, 0.9)';
+            customBtn.style.color = 'white';
+            customBtn.style.border = 'none';
+            customBtn.style.borderRadius = '5px';
+            customBtn.style.cursor = 'pointer';
+            customBtn.style.fontWeight = 'bold';
+
+            
+            const sendCustom = () => {
+                if (customInput.value.trim() !== '') {
+                    window.submitStoryChoice(customInput.value.trim());
+                }
+            };
+            customBtn.onclick = sendCustom;
+            customInput.onkeydown = (e) => { if (e.key === 'Enter') sendCustom(); };
+
+            
+            customInput.onfocus = () => {
+                if (countdownTimer) {
+                    clearInterval(countdownTimer);
+                    countdownTimer = null; 
+                    if (storyStatus) {
+                        storyStatus.innerText = '等待自定义抉择...';
+                        storyStatus.style.color = '#f39c12'; 
+                    }
+                    storyProgressBar.style.background = '#f39c12'; 
+                }
+            };
+
+            customDiv.appendChild(customInput);
+            customDiv.appendChild(customBtn);
+            storyOptions.appendChild(customDiv);
+
+            
+            storyProgressBar.style.background = '#ffb6c1';
+
+            
+            timeLeft = 600;
+            storyProgressBar.style.width = '100%';
+
+            if(countdownTimer) clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                timeLeft--;
+                
+                storyProgressBar.style.width = (timeLeft / 600 * 100) + '%';
+                if(timeLeft <= 0) {
+                    clearInterval(countdownTimer);
+                    window.submitStoryChoice("*(沉默不语。请顺应局势自动推进)*");
+                }
+            }, 100);
+        };
+
+        
+        window.submitStoryChoice = function(choiceText) {
+            if(countdownTimer) clearInterval(countdownTimer);
+            storyOptions.style.display = 'none';
+            storyProgressContainer.style.display = 'none';
+
+            if (storyStatus) {
+                storyStatus.innerText = '推演中...';
+                storyStatus.style.color = '#e74c3c';
+            }
+
+            
+            isGeneratingStory = true;
+            hasStoryStarted = true;
+            if (storyActionBtn) {
+                storyActionBtn.innerText = "🛑 停止";
+                storyActionBtn.style.background = "rgba(231, 76, 60, 0.9)";
+            }
+
+            
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({type: "chat", text: "/choice " + choiceText}));
+            }
+        };
+
+        
+        
+        
+        const WS_PROTOCOL = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const WS_URL = `${WS_PROTOCOL}//${location.host}/ws/romasha`;
+
+        let ws;
+        
+
+        
+        let audioContext = null;
+        let analyser = null;
+        let dataArray = null;
+        let currentAudioSource = null;
+        let mouthOpenY = 0; 
+        let isAudioPlaying = false; 
+        let actionWaitAudioEnd = false; 
+
+        const statusDot = document.getElementById('ws-status');
+
+        
+        
+        
+        let wsStatusTapCount = 0;
+        let wsStatusTapTimer = null;
+        let wsStatusLongPressTimer = null;
+        let wsStatusLongPressTriggered = false;
+
+        
+        statusDot.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wsStatusLongPressTriggered) {
+                wsStatusLongPressTriggered = false;
+                return;
+            }
+            wsStatusTapCount++;
+            if (wsStatusTapTimer) clearTimeout(wsStatusTapTimer);
+            wsStatusTapTimer = setTimeout(() => {
+                wsStatusTapCount = 0;
+            }, 1500);
+            if (wsStatusTapCount >= 5) {
+                wsStatusTapCount = 0;
+                if (window.AndroidApp && window.AndroidApp.openServerSettings) {
+                    window.AndroidApp.openServerSettings();
+                } else {
+                    alert("当前不是安卓 App 环境，无法打开原生服务器设置。");
+                }
+            }
+        });
+
+        
+        statusDot.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            wsStatusLongPressTriggered = false;
+            wsStatusLongPressTimer = setTimeout(() => {
+                wsStatusLongPressTriggered = true;
+                if (window.AndroidApp && window.AndroidApp.openServerSettings) {
+                    window.AndroidApp.openServerSettings();
+                } else {
+                    alert("当前不是安卓 App 环境，无法打开原生服务器设置。");
+                }
+            }, 2500);
+        });
+        statusDot.addEventListener('pointerup', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wsStatusLongPressTimer) clearTimeout(wsStatusLongPressTimer);
+        });
+        statusDot.addEventListener('pointerleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wsStatusLongPressTimer) clearTimeout(wsStatusLongPressTimer);
+        });
+        statusDot.addEventListener('pointercancel', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (wsStatusLongPressTimer) clearTimeout(wsStatusLongPressTimer);
+        });
+
+        const customParams = {};
+
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+
+            ws.onopen = () => {
+                console.log("🌟 神经链接已建立！");
+                statusDot.style.backgroundColor = '#4ade80';
+                ws.send(JSON.stringify({ type: 'system', text: 'EVENT:READY' }));
+
+                
+                ws.send(JSON.stringify({ type: 'terminal_cmd', state: terminalOpen, init: true }));
+            };
+
+            ws.onmessage = (event) => {
+                const payload = JSON.parse(event.data);
+                switch(payload.action) {
+                    case 'sync_config': 
+                        
+                        
+                        if (payload.bubble_size !== undefined) {
+                            savedSize = payload.bubble_size;
+                            window.setBubbleSize(savedSize);
+                            if(window.updateSizeIcon) window.updateSizeIcon();
+                        }
+
+                        
+                        if (payload.voice_enabled !== undefined) {
+                            if (!payload.voice_enabled) {
+                                voiceState = 2; 
+                            } else {
+                                voiceState = (payload.tts_engine === 'sovits') ? 1 : 0;
+                            }
+                            localStorage.setItem('romasha_voiceState', voiceState);
+                            if(window.updateVoiceIcon) window.updateVoiceIcon();
+                        }
+
+                        
+                        if (payload.ja_translate !== undefined) {
+                            localStorage.setItem('romasha_jaTranslate', payload.ja_translate);
+                        }
+
+                        
+                        if (payload.touch_enabled !== undefined) {
+                            touchEnabled = payload.touch_enabled;
+                            localStorage.setItem('romasha_touchEnabled', touchEnabled);
+                            const touchToggleBtn = document.getElementById('touch-toggle-btn');
+                            if (touchToggleBtn) touchToggleBtn.innerText = touchEnabled ? '👆' : '🔒';
+                        }
+
+                        
+                        const gyroToggleBtn = document.getElementById('gyro-toggle-btn');
+                        if (payload.track_enabled !== undefined) {
+                            if (!payload.track_enabled) {
+                                trackingMode = 2; 
+                                trackingEnabled = false;
+                            } else if (trackingMode === 2) {
+                                
+                                trackingMode = 0;
+                                trackingEnabled = true;
+                            }
+                            localStorage.setItem('romasha_trackingMode', trackingMode);
+                            if (gyroToggleBtn) {
+                                if (trackingMode === 0) gyroToggleBtn.innerText = '👁️';
+                                else if (trackingMode === 1) gyroToggleBtn.innerText = '🧭';
+                                else gyroToggleBtn.innerText = '💤';
+                            }
+                        }
+                        break;
+                    case 'bubble':
+                        window.showBubble(payload.html);
+                        break;
+                    case 'sys_bubble': 
+                        window.showSystemBubble(payload.html, payload.duration || 1500);
+                        break;
+                    case 'terminal': 
+                        const termBoxContainer = document.getElementById('terminal-box');
+                        termBoxContainer.innerHTML += `<div>${payload.text}</div>`;
+                        termBoxContainer.scrollTop = termBoxContainer.scrollHeight;
+                        break;
+                    case 'terminal_history': 
+                        const historyBox = document.getElementById('terminal-box');
+                        historyBox.innerHTML = payload.text;
+                        historyBox.scrollTop = historyBox.scrollHeight;
+                        break;
+                    case 'motion':
+                        
+                        if(window.playRomashaMotion) {
+                            window.playRomashaMotion(payload.group, payload.index);
+                        } else if(window.romashaModel) {
+                            window.romashaModel.motion(payload.group, payload.index, 3);
+                        }
+                        break;
+                    
+                    case 'idle_motion':
+                        
+                        if(window.setRomashaIdleMotion) {
+                            window.setRomashaIdleMotion(payload.index);
+                        } else {
+                            currentIdleIndex = payload.index;
+                            if(window.romashaModel) window.romashaModel.motion(payload.group, payload.index, 1);
+                        }
+                        break;
+                    case 'param':
+                        
+                        if (payload.value === -99) {
+                            delete customParams[payload.id];
+                        } else {
+                            customParams[payload.id] = payload.value;
+                        }
+                        break;
+                    case 'tracking':
+                        if(window.toggleTracking) window.toggleTracking(payload.state);
+                        break;
+                    
+                    case 'play_audio': 
+                        
+                        if(window.playRomashaVoice) window.playRomashaVoice(payload.url);
+                        break;
+                    case 'stop_audio':
+                        if(window.stopRomashaVoice) window.stopRomashaVoice();
+                        break;
+                    case 'touch_unlock':
+                        touchBusy = false;
+                        break;
+                    
+                    case "clear_name_cache":
+                        localStorage.removeItem("romasha_playerName");
+                        if (document.getElementById('story-name-btn')) {
+                            document.getElementById('story-name-btn').innerText = "👤 未命名";
+                        }
+                        break;
+                    case 'sys_bubble_lock':
+                        
+                        currentChatHtml = payload.html; 
+                        isShowingSysBubble = true;
+                        chatBubble.innerHTML = payload.html;
+                        chatBubble.style.opacity = 1;
+                        if(sysBubbleTimeout) clearTimeout(sysBubbleTimeout);
+                        break;
+                    case 'update_name_btn':
+                        localStorage.setItem("romasha_playerName", payload.name);
+                        const nameBtn = document.getElementById('story-name-btn');
+                        if (nameBtn) nameBtn.innerText = `👤 ${payload.name}`;
+                        break;
+                    
+                    case "story_prepare":
+                        storyHardExited = false;
+                        
+                        if (!storyModeActive) {
+                            storyToggleBtn.click();
+                        }
+                        
+                        if(countdownTimer) clearInterval(countdownTimer);
+                        storyOptions.style.display = 'none';
+                        storyProgressContainer.style.display = 'none';
+                        if (storyStatus) {
+                            storyStatus.innerText = '推演中...';
+                            storyStatus.style.color = '#e74c3c';
+                        }
+                        
+                        isGeneratingStory = true;
+                        if (document.getElementById('story-action-btn')) {
+                            document.getElementById('story-action-btn').innerText = "🛑 停止";
+                            document.getElementById('story-action-btn').style.background = "#e74c3c";
+                        }
+
+                        storyCurrent.innerHTML = '';
+                        if(payload.desc) {
+                            storyHistory.innerHTML += `<span style='color:#6031e2;'><b>${payload.desc}</b></span><br>`;
+                        }
+                        storyHistory.scrollTop = storyHistory.scrollHeight;
+                        break;
+
+                    
+                    case 'sys_bubble_unlock':
+                        isShowingSysBubble = false;
+                        currentChatHtml = "";
+                        chatBubble.style.opacity = 0;
+                        break;
+
+                    case "story_chunk":
+                        if (storyHardExited) break;
+                        
+                        storyCurrent.innerHTML += payload.text.replace(/\n/g, '<br>');
+                        storyCurrent.scrollTop = storyCurrent.scrollHeight;
+                        break;
+
+                    
+                    case "story_text_update":
+                        if (storyHardExited) break;
+                        isShowingSysBubble = false;
+                        isGeneratingStory = false;
+                        const actionBtn = document.getElementById('story-action-btn');
+                        if (actionBtn) {
+                            actionBtn.innerText = "▶ 继续";
+                            actionBtn.style.background = "#2ecc71";
+                        }
+                        
+                        storyCurrent.innerHTML = payload.final_text.replace(/\n/g, '<br>');
+                        storyHistory.innerHTML += `<span style='color:#333;'>${storyCurrent.innerHTML}</span><br><br>`;
+                        storyCurrent.innerHTML = '';
+                        storyHistory.scrollTop = storyHistory.scrollHeight;
+                        break;
+
+                    
+                    case "story_show_options":
+                        if (storyHardExited) break;
+                        if (payload.options && payload.options.length > 0) {
+                            window.renderStoryOptions(payload.options);
+                        }
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.style.backgroundColor = '#f87171';
+                touchBusy = false; 
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+        connectWebSocket();
+
+        window.playRomashaVoice = async function(audioUrl) {
+            
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
+            
+            if (currentAudioSource) {
+                currentAudioSource.onended = null; 
+                currentAudioSource.stop();
+                currentAudioSource.disconnect();
+            }
+
+            try {
+                
+                const response = await fetch(audioUrl);
+                const arrayBuffer = await response.arrayBuffer();
+
+                
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                
+                currentAudioSource = audioContext.createBufferSource();
+                currentAudioSource.buffer = audioBuffer;
+
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount;
+                dataArray = new Uint8Array(bufferLength);
+
+                
+                currentAudioSource.connect(analyser);
+                analyser.connect(audioContext.destination);
+
+                
+                currentAudioSource.onended = () => {
+                    isAudioPlaying = false; 
+                    mouthOpenY = 0;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_END' }));
+                    }
+                };
+
+                
+                
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_START' }));
+                }
+
+                isAudioPlaying = true; 
+                
+                currentAudioSource.start(0);
+
+            } catch (e) {
+                console.error("音频播放失败:", e);
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_END' }));
+                }
+            }
+        };
+
+        
+        window.stopRomashaVoice = function() {
+            if (currentAudioSource) {
+                
+                currentAudioSource.onended = null;
+                currentAudioSource.stop();
+                currentAudioSource.disconnect();
+                currentAudioSource = null;
+            }
+            isAudioPlaying = false; 
+            mouthOpenY = 0;
+            actionWaitAudioEnd = false; 
+        };
+
+        
+        
+        
+        const chatBubble = document.getElementById('chat-bubble');
+        const inputContainer = document.getElementById('input-container');
+        const chatInput = document.getElementById('chat-input');
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        const sendBtn = document.getElementById('send-btn');
+
+        let bubbleTimeout = null;
+        let sysBubbleTimeout = null; 
+        let currentChatHtml = "";    
+        let isShowingSysBubble = false; 
+        let touchBusy = false; 
+
+        window.showBubble = function(htmlText) {
+            currentChatHtml = htmlText; 
+            
+            if (isShowingSysBubble) return;
+
+            chatBubble.innerHTML = htmlText;
+            chatBubble.style.opacity = 1;
+            chatBubble.scrollTop = chatBubble.scrollHeight;
+
+            if(bubbleTimeout) clearTimeout(bubbleTimeout);
+            if(sysBubbleTimeout) clearTimeout(sysBubbleTimeout); 
+
+            let displayTime = Math.max(5500, htmlText.replace(/<[^>]+>/g, '').length * 120);
+            bubbleTimeout = setTimeout(() => {
+                chatBubble.style.opacity = 0;
+                currentChatHtml = ""; 
+            }, displayTime);
+        };
+
+        
+        window.showSystemBubble = function(htmlText, duration = 1500) {
+            isShowingSysBubble = true; 
+            chatBubble.innerHTML = htmlText;
+            chatBubble.style.opacity = 1;
+
+            if(sysBubbleTimeout) clearTimeout(sysBubbleTimeout);
+
+            
+            
+            sysBubbleTimeout = setTimeout(() => {
+                isShowingSysBubble = false; 
+
+                
+                if (currentChatHtml && chatBubble.style.opacity == '1') {
+                    chatBubble.innerHTML = currentChatHtml;
+                    chatBubble.scrollTop = chatBubble.scrollHeight;
+                } else if (!currentChatHtml) {
+                    chatBubble.style.opacity = 0;
+                }
+            }, duration);
+        };
+
+        
+        chatToggleBtn.addEventListener('click', () => {
+            inputContainer.classList.toggle('active');
+            
+            document.body.classList.toggle('input-active');
+            if (inputContainer.classList.contains('active')) chatInput.focus();
+            else chatInput.blur();
+        });
+
+        const sendMessage = () => {
+            const text = chatInput.value.trim();
+            if (text === '') return;
+
+            
+            if (typeof storyModeActive !== 'undefined' && storyModeActive) {
+                window.submitStoryChoice(text);
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/auto ') || text.startsWith('/choice ') || text.startsWith('/chapter ')) {
+                ws.send(JSON.stringify({ type: 'chat', text: text }));
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text === '/reset') {
+                if (confirm("「不可逆的抉择：世界线重置」\n\n真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。")) {
+                    currentChatHtml = ""; 
+                    ws.send(JSON.stringify({ type: 'chat', text: '/SYSTEM_RESET_MEMORY' }));
+                }
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); 
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/track ')) {
+                const stateVal = text.split(' ')[1] !== '0'; 
+                ws.send(JSON.stringify({ type: 'track_cmd', state: stateVal }));
+
+                
+                if (stateVal) {
+                    trackingMode = 0; 
+                    gyroToggleBtn.innerText = '👁️';
+                } else {
+                    trackingMode = 2; 
+                    gyroToggleBtn.innerText = '💤';
+                }
+                trackingEnabled = stateVal;
+                localStorage.setItem('romasha_trackingMode', trackingMode);
+
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); 
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/touch ')) {
+                const stateVal = text.split(' ')[1] !== '0'; 
+
+                
+                ws.send(JSON.stringify({ type: 'touch_cmd', state: stateVal }));
+
+                
+                touchEnabled = stateVal;
+                localStorage.setItem('romasha_touchEnabled', touchEnabled);
+                touchToggleBtn.innerText = touchEnabled ? '👆' : '🔒';
+
+                
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/voice ')) {
+                const val = text.split(' ')[1].toLowerCase();
+
+                
+                if (val === '0') {
+                    voiceState = 2;
+                } else if (val === 'cosyvoice') {
+                    voiceState = 0;
+                } else if (val === 'sovits') {
+                    voiceState = 1;
+                } else if (val === '1' && voiceState === 2) {
+                    voiceState = 0; 
+                }
+
+                localStorage.setItem('romasha_voiceState', voiceState);
+                if(window.updateVoiceIcon) window.updateVoiceIcon();
+
+                ws.send(JSON.stringify({ type: 'voice_cmd', text: text }));
+
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/size ')) {
+                const sizeVal = parseInt(text.split(' ')[1]);
+                if ([0, 1, 2].includes(sizeVal)) {
+                    
+                    savedSize = sizeVal;
+                    window.setBubbleSize(sizeVal);
+                    if(window.updateSizeIcon) window.updateSizeIcon();
+
+                    
+                    ws.send(JSON.stringify({ type: 'size_cmd', val: sizeVal }));
+
+                    
+                    
+                }
+
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (text.startsWith('/ja ')) {
+                const stateVal = text.split(' ')[1] !== '0'; 
+
+                
+                ws.send(JSON.stringify({ type: 'ja_cmd', state: stateVal }));
+
+                
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active');
+                chatInput.blur();
+                return;
+            }
+
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                window.showBubble(`<span style='color:#48a1fa;'>你: ${text}</span><br><span style='color:#888; font-size: var(--sub-font-size);'><i>(她倾听着你的话语...)</i></span>`);
+                ws.send(JSON.stringify({ type: 'chat', text: text }));
+                chatInput.value = '';
+                chatInput.style.height = '46px';
+                inputContainer.classList.remove('active');
+                document.body.classList.remove('input-active'); 
+                chatInput.blur();
+            }
+        };
+
+        
+        chatInput.addEventListener('input', function() {
+            this.style.height = '46px'; 
+            if (this.value.trim() !== '') {
+                
+                this.style.height = this.scrollHeight + 'px';
+                
+                if (this.scrollHeight > 100) {
+                    this.style.overflowY = 'auto';
+                } else {
+                    this.style.overflowY = 'hidden';
+                }
+            } else {
+                this.style.overflowY = 'hidden';
+            }
+        });
+
+        
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (!e.shiftKey) {
+                    
+                    e.preventDefault();
+                    sendMessage();
+                }
+                
+                
+            }
+        });
+        sendBtn.addEventListener('click', sendMessage);
+
+        
+        
+        
+        const app = new PIXI.Application({
+            view: document.getElementById('canvas'),
+            autoStart: true,
+            resizeTo: window,
+            transparent: true,
+            backgroundAlpha: 0,
+            resolution: window.devicePixelRatio || 1, 
+            autoDensity: true 
+        });
+
+        
+        
+        let trackingMode = parseInt(localStorage.getItem('romasha_trackingMode')) || 0;
+        let trackingEnabled = trackingMode !== 2; 
+
+        
+        let baseBeta = null;
+        let baseGamma = null;
+
+        const gyroToggleBtn = document.getElementById('gyro-toggle-btn');
+        
+        if (trackingMode === 0) gyroToggleBtn.innerText = '👁️';
+        else if (trackingMode === 1) gyroToggleBtn.innerText = '🧭';
+        else gyroToggleBtn.innerText = '💤';
+
+        
+        window.toggleTracking = function(state) {
+            trackingEnabled = state;
+            if (!state) {
+                if(window.romashaModel) window.romashaModel.internalModel.focusController.focus(0, 0);
+            }
+        };
+
+        
+        const resetBtn = document.getElementById('reset-btn');
+        resetBtn.addEventListener('click', () => {
+            if (confirm("「不可逆的抉择：世界线重置」\n\n真的要让她忘记这一切吗？\n你们将回到最初始的陌生人状态。")) {
+                currentChatHtml = ""; 
+                ws.send(JSON.stringify({ type: 'chat', text: '/SYSTEM_RESET_MEMORY' }));
+            }
+        });
+
+        
+        gyroToggleBtn.addEventListener('click', async () => {
+            trackingMode = (trackingMode + 1) % 3;
+
+            
+            localStorage.setItem('romasha_trackingMode', trackingMode);
+
+            
+            let isTrackingOn = (trackingMode !== 2);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'track_cmd', state: isTrackingOn }));
+            }
+
+            targetFocusX = 0; targetFocusY = 0;
+            baseGravX = null; baseGravY = null;
+
+            if (trackingMode === 0) {
+                gyroToggleBtn.innerText = '👁️';
+                window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(她开始随着你的指尖移动视线...)</i></span>");
+            } else if (trackingMode === 1) {
+                gyroToggleBtn.innerText = '🧭';
+                window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(她感知到了你所在空间的倾斜...)</i></span>");
+            } else {
+                gyroToggleBtn.innerText = '💤';
+                window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(她收回了视线，不再关注外界的动静...)</i></span>");
+            }
+        });
+
+        
+        
+        
+        const voiceBtn = document.getElementById('voice-toggle-btn');
+        const sizeBtn = document.getElementById('size-toggle-btn');
+
+        
+        let voiceState = parseInt(localStorage.getItem('romasha_voiceState')) || 0;
+        
+
+        
+        window.updateVoiceIcon = function() {
+            if (voiceState === 0) voiceBtn.innerText = '🔊';       
+            else if (voiceState === 1) voiceBtn.innerText = '🎙️';   
+            else voiceBtn.innerText = '🔇';                       
+        };
+        window.updateVoiceIcon();
+
+        window.updateSizeIcon = function() {
+            if (savedSize === 0) sizeBtn.innerText = '小';
+            else if (savedSize === 1) sizeBtn.innerText = '中';
+            else sizeBtn.innerText = '大';
+        };
+        window.updateSizeIcon();
+
+        
+        let voiceClickTimer = null;
+        let voiceClickCount = 0;
+
+        voiceBtn.addEventListener('click', (e) => {
+            e.preventDefault(); 
+            voiceClickCount++;
+
+            if (voiceClickCount === 1) {
+                
+                voiceClickTimer = setTimeout(() => {
+                    
+                    voiceState = (voiceState + 1) % 3;
+                    localStorage.setItem('romasha_voiceState', voiceState);
+                    updateVoiceIcon();
+
+                    let cmd = '/voice cosyvoice';
+                    if (voiceState === 1) cmd = '/voice sovits';
+                    else if (voiceState === 2) cmd = '/voice 0';
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'voice_cmd', text: cmd }));
+                    }
+
+                    voiceClickCount = 0; 
+                }, 500); 
+
+            } else if (voiceClickCount === 2) {
+                
+                clearTimeout(voiceClickTimer); 
+                voiceClickCount = 0; 
+
+                
+                if(navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+                
+                let savedJa = localStorage.getItem('romasha_jaTranslate') === 'true';
+                let newState = !savedJa;
+                localStorage.setItem('romasha_jaTranslate', newState);
+
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ja_cmd', state: newState }));
+                }
+            }
+        });
+
+        
+        let sizeClickTimer = null;
+        let sizeClickCount = 0;
+
+        
+        let terminalOpen = localStorage.getItem('romasha_terminalOpen') === 'true';
+        const termBox = document.getElementById('terminal-box');
+        if (terminalOpen) termBox.classList.add('active');
+
+        sizeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            sizeClickCount++;
+
+            if (sizeClickCount === 1) {
+                
+                sizeClickTimer = setTimeout(() => {
+                    
+                    savedSize = (savedSize + 1) % 3;
+                    window.setBubbleSize(savedSize);
+                    updateSizeIcon();
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'size_cmd', val: savedSize }));
+                    }
+                    sizeClickCount = 0;
+                }, 500);
+
+            } else if (sizeClickCount === 2) {
+                
+                clearTimeout(sizeClickTimer);
+                sizeClickCount = 0;
+
+                
+                if(navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+                terminalOpen = !terminalOpen;
+                localStorage.setItem('romasha_terminalOpen', terminalOpen);
+
+                if (terminalOpen) {
+                    termBox.classList.add('active');
+                } else {
+                    termBox.classList.remove('active');
+                }
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'terminal_cmd', state: terminalOpen }));
+                }
+            }
+        });
+
+        
+        
+        let savedTouch = localStorage.getItem('romasha_touchEnabled');
+        
+        let touchEnabled = savedTouch !== null ? savedTouch === 'true' : true;
+
+        const touchToggleBtn = document.getElementById('touch-toggle-btn');
+
+        
+        touchToggleBtn.innerText = touchEnabled ? '👆' : '🔒';
+
+        touchToggleBtn.addEventListener('click', () => {
+            touchEnabled = !touchEnabled;
+
+            
+            localStorage.setItem('romasha_touchEnabled', touchEnabled);
+
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'touch_cmd', state: touchEnabled }));
+            }
+
+            if (touchEnabled) {
+                touchToggleBtn.innerText = '👆';
+                window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(你们之间的物理屏障消散了...)</i></span>");
+            } else {
+                touchToggleBtn.innerText = '🔒';
+                window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(一道无形的屏障将你们轻轻隔绝...)</i></span>");
+            }
+        });
+
+        
+        function handleGyro(event) {
+            if (!trackingEnabled || trackingMode !== 1 || !window.romashaModel) return;
+
+            let beta = event.beta;   
+            let gamma = event.gamma; 
+
+            
+            let clampedGamma = Math.max(-30, Math.min(30, gamma));
+            let targetX = ((clampedGamma + 30) / 60) * window.innerWidth;
+
+            
+            let clampedBeta = Math.max(30, Math.min(80, beta));
+            let targetY = ((clampedBeta - 30) / 50) * window.innerHeight;
+
+            window.romashaModel.focus(targetX, targetY);
+        }
+
+        
+        let targetFocusX = 0;
+        let targetFocusY = 0;
+
+        
+        let baseGravX = null;
+        let baseGravY = null;
+
+        
+        window.handleNativeGyro = function(gravX, gravY, gravZ) {
+            if (!trackingEnabled || trackingMode !== 1 || !window.romashaModel) return;
+
+            
+            if (baseGravX === null || baseGravY === null) {
+                baseGravX = gravX;
+                baseGravY = gravY;
+            }
+
+            
+            let deltaX = gravX - baseGravX;
+            let deltaY = gravY - baseGravY;
+
+            
+            
+            
+            
+            let destX = -(deltaX / 7.0);
+            
+            let destY = -(deltaY / 1.5);
+
+            
+            destX = Math.max(-1, Math.min(1, destX));
+            destY = Math.max(-1, Math.min(1, destY));
+
+            
+            targetFocusX += (destX - targetFocusX) * 0.1;
+            targetFocusY += (destY - targetFocusY) * 0.1;
+        };
+
+        PIXI.live2d.Live2DModel.from('model/romasha_talk.model3.json').then(model => {
+            app.stage.addChild(model);
+            window.romashaModel = model;
+
+            
+            model.scale.set(0.45);
+            
+            
+            model.y = window.innerHeight * 0.10;
+            model.x = window.innerWidth / 2 - model.width / 2;
+
+            model.interactive = false;
+
+            
+            
+            
+            let currentIdleIndex = 24; 
+            let actionToken = 0; 
+            let idleTimer = null; 
+
+            
+            window.playRomashaMotion = function(group, index) {
+                let myToken = ++actionToken; 
+                if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; } 
+
+                
+                
+                
+                
+                actionWaitAudioEnd = (typeof voiceState !== 'undefined' && voiceState !== 2);
+
+                let startTime = Date.now(); 
+
+                model.motion(group, index, 3).finally(() => {
+                    if (myToken !== actionToken) return;
+
+                    
+                    if (actionWaitAudioEnd) {
+                        return;
+                    }
+
+                    
+                    let elapsed = Date.now() - startTime; 
+                    
+                    let remainTime = Math.max(0, 5500 - elapsed);
+
+                    
+                    idleTimer = setTimeout(() => {
+                        
+                        
+                        if (myToken === actionToken) {
+                            actionToken = 0; 
+                            playCurrentIdle(); 
+                        }
+                    }, remainTime);
+                });
+            };
+
+            
+            window.setRomashaIdleMotion = function(index) {
+                currentIdleIndex = index;
+                
+                
+                if (actionWaitAudioEnd && actionToken !== 0) {
+                    actionWaitAudioEnd = false;
+                    actionToken = 0;
+                    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+                    playCurrentIdle();
+                    return;
+                }
+                
+                if (actionToken === 0) {
+                    playCurrentIdle();
+                }
+            };
+
+            
+            function playCurrentIdle() {
+                
+                if (actionToken !== 0) return;
+
+                model.motion('BaseMotions', currentIdleIndex, 1).finally(() => {
+                    
+                    if (actionToken === 0) {
+                        idleTimer = setTimeout(() => {
+                            if (actionToken === 0) playCurrentIdle();
+                        }, 50);
+                    }
+                });
+            }
+
+            
+            setTimeout(() => { playCurrentIdle(); }, 1000);
+
+            
+            if (window.AndroidApp && window.AndroidApp.onModelFullyLoaded) {
+                window.AndroidApp.onModelFullyLoaded();
+            }
+
+            app.ticker.add(() => {
+                let bounds = model.getBounds();
+                let targetBubbleY = bounds.y + 30;
+                if (targetBubbleY - chatBubble.offsetHeight < 10) targetBubbleY = chatBubble.offsetHeight + 10;
+                chatBubble.style.left = (bounds.x + bounds.width / 2) + 'px';
+                chatBubble.style.top = targetBubbleY + 'px';
+
+                if (model.internalModel && model.internalModel.coreModel) {
+                    for (const [key, val] of Object.entries(customParams)) {
+                        model.internalModel.coreModel.setParameterValueById(key, val);
+                    }
+
+                    
+                    if (model.internalModel.focusController) {
+                        model.internalModel.focusController.focus(targetFocusX, targetFocusY);
+                    }
+
+                    
+                    if (analyser && dataArray && isAudioPlaying) {
+                        analyser.getByteFrequencyData(dataArray);
+                        
+                        let sum = 0;
+                        for(let i = 0; i < dataArray.length; i++) {
+                            sum += dataArray[i];
+                        }
+                        let average = sum / dataArray.length;
+
+                        
+                        let targetMouthY = Math.min(1.0, average / 40.0);
+
+                        
+                        mouthOpenY += (targetMouthY - mouthOpenY) * 0.4;
+
+                        
+                        model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenY);
+                    }else if (mouthOpenY > 0.01) {
+                        
+                        mouthOpenY += (0 - mouthOpenY) * 0.4;
+                        model.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenY);
+                    }
+                }
+            });
+
+            
+            window.toggleTracking = function(state) {
+                trackingEnabled = state;
+                if (!state) {
+                    targetFocusX = 0; 
+                    targetFocusY = 0;
+                }
+            };
+
+            
+            let isDragging = false;
+            let downX = 0, downY = 0;
+            let downTime = 0;
+            let initialPinchDistance = null;
+            let initialScale = 1;
+
+            const touchPrompts = {
+                "head": "*你温柔地摸了摸她的头*", "face": "*你轻轻戳了戳她的脸颊*", "bust": "*你不小心碰到了她的胸部*",
+                "belly": "*你搂住了她的腰*", "hip": "*你不小心碰到了她的臀部*", "crotch": "*你不小心碰到了她的隐私部位*",
+                "leg": "*你碰到了她的腿*", "hand_right": "*你牵起了她的右手*", "hand_left": "*你握住了她的左手*"
+            };
+
+            
+            window.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    isDragging = false;
+                    initialPinchDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    initialScale = model.scale.x;
+                }
+            }, {passive: false});
+
+            window.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && initialPinchDistance) {
+                    let currentDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                    let scale = initialScale * (currentDistance / initialPinchDistance);
+                    scale = Math.max(0.08, Math.min(scale, 0.8));
+                    model.scale.set(scale);
+                }
+                
+                else if (trackingEnabled && trackingMode === 0 && e.touches.length === 1 && !initialPinchDistance) {
+                    targetFocusX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
+                    targetFocusY = -((e.touches[0].clientY / window.innerHeight) * 2 - 1); 
+                }
+            }, {passive: false});
+
+            window.addEventListener('touchend', (e) => {
+                if (e.touches.length < 2) initialPinchDistance = null;
+            });
+
+            
+            window.addEventListener('pointerdown', (e) => {
+                
+                if (
+                    e.target.closest('#chat-bubble') ||
+                    e.target.closest('#input-container') ||
+                    e.target.closest('.side-btn') ||
+                    e.target.closest('#ws-status') ||
+                    e.target.closest('#terminal-box')
+                ) return;
+
+                downX = e.clientX;
+                downY = e.clientY;
+                downTime = Date.now();
+                isDragging = true;
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                if(!isDragging || initialPinchDistance) return;
+                isDragging = false;
+
+                let upTime = Date.now();
+                let dist = Math.hypot(e.clientX - downX, e.clientY - downY);
+
+                
+                if(dist < 40 && (upTime - downTime) < 500) {
+                    
+                    if (!touchEnabled) return;
+                    
+                    if (touchBusy) {
+                        window.showSystemBubble("<span style='color:#888; font-size: var(--sub-font-size);'><i>(她还在感受你刚才的触碰...)</i></span>", 800);
+                        return;
+                    }
+
+                    const bounds = model.getBounds();
+                    
+                    if (e.clientX >= bounds.x && e.clientX <= bounds.x + bounds.width &&
+                        e.clientY >= bounds.y && e.clientY <= bounds.y + bounds.height) {
+
+                        const relX = (e.clientX - bounds.x) / bounds.width;
+                        const relY = (e.clientY - bounds.y) / bounds.height;
+
+                        let bodyPart = "unknown";
+                        if (relY < 0.22) bodyPart = "head";
+                        else if (relY < 0.33) bodyPart = "face";
+                        else if (relY < 0.53 && relY > 0.43) bodyPart = "bust";
+                        else if (relY < 0.65) bodyPart = "belly";
+                        else if (relY < 0.78) {
+                            if (relX > 0.52 && relX < 0.55) bodyPart = "hip";
+                            else bodyPart = "crotch";
+                        } else bodyPart = "leg";
+
+                        if (relY > 0.69 && relY < 0.78) {
+                            if (relX < 0.37) bodyPart = "hand_right";
+                            if (relX > 0.57) bodyPart = "hand_left";
+                        }
+
+                        
+                        touchBusy = true;
+                        
+                        let actionText = touchPrompts[bodyPart] || "*你触碰了她*";
+                        window.showBubble(`<span style='color:#fd92a1;'>${actionText}</span><br><span style='color:#888; font-size: var(--sub-font-size);'><i>(感受中...)</i></span>`);
+
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'touch', part: bodyPart }));
+                        } else {
+                            touchBusy = false; 
+                        }
+                    }
+                }
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (isDragging && !initialPinchDistance) {
+                    model.x += e.clientX - downX;
+                    model.y += e.clientY - downY;
+                    downX = e.clientX;
+                    downY = e.clientY;
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'drag' }));
+                    }
+                }
+            });
+
+        });
+    </script>
+</body>
+</html>
