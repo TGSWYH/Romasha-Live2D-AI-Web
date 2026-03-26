@@ -1400,6 +1400,7 @@ async def romasha_endpoint(websocket: WebSocket):
                                                                            
                         llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
                                                   not msg.get("content", "").startswith("[系统机制")]
+                        story_manager.save_recent_chat_history(llm_brain.chat_history, max_items=16)
                         await websocket.send_json({"action": "sys_bubble",
                                                    "html": f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(已切入世界线推演模式，参与度: {level}...)</i></span>",
                                                    "duration": 3000})                
@@ -1420,6 +1421,7 @@ async def romasha_endpoint(websocket: WebSocket):
                                               
                     llm_brain.chat_history = [msg for msg in llm_brain.chat_history if
                                               not msg.get("content", "").startswith("[系统机制")]
+                    story_manager.save_recent_chat_history(llm_brain.chat_history, max_items=16)
                     await websocket.send_json({"action": "sys_bubble",
                                                "html": "<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(正在推演下个阶段的未来...)</i></span>",
                                                "duration": 4000})                
@@ -1445,6 +1447,7 @@ async def romasha_endpoint(websocket: WebSocket):
                                                 
                     story_manager.archive_novel_log()
                     llm_brain.chat_history.clear()
+                    story_manager.clear_recent_chat_history()
                     llm_brain.config["intimacy"] = 0
                     llm_brain.config["player_name"] = ""                      
                                                
