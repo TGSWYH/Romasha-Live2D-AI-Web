@@ -470,7 +470,7 @@ async def check_and_apply_outfit(websocket: WebSocket, is_initial=False):
         target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
     elif hour >= 22 or hour <= 6:
         if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
-            if current_intimacy >= 60 and random.random() < 0.35:
+            if current_intimacy >= 75 and random.random() < 0.10:
                                                            
                 target_outfit = "towel"
             else:
