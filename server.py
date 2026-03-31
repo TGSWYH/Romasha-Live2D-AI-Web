@@ -368,7 +368,7 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
             if new_loc:
                 llm_brain.config["current_location"] = new_loc
                 llm_brain.save_config()
-                print(f"\n🚶‍♀️ [空间转移]: 伴随着脚步声，Romasha 前往了【{new_loc}】。")
+                print(f"\n🚶‍♀️ [步履回响]: 伴随着轻微的脚步声，她离开了原地，朝着【{new_loc}】走去。")
 
                                               
                 bubble_html = f"<span style='color:#6031e2; font-size: var(--sub-font-size);'><i>(她改变了位置，现在来到了：{new_loc}...)</i></span><br>"
@@ -378,7 +378,7 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
                                                           
                 asyncio.create_task(websocket.send_json({
                     "action": "sys_bubble",
-                    "html": f"<span style='color:#3498db; font-weight:bold; font-size: var(--main-font-size);'>🚶‍♀️ 场景转移：前往【{new_loc}】...</span>",
+                    "html": f"<span style='color:#3498db; font-weight:bold; font-size: var(--main-font-size);'>🚶‍♀️ 她似乎有了新的去意，正朝着【{new_loc}】走去...</span>",
                     "duration": 4000              
                 }))
             return
@@ -404,6 +404,7 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
             hair_style = tag.split('_', 1)[1]
             params = outfit_manager.get_outfit_params(outfit_manager._current_outfit, hair_style)
             for k, v in params.items(): await websocket.send_json({"action": "param", "id": k, "value": v})
+            persist_current_outfit_state(app.state.current_time_period)
 
         elif tag.startswith('wear_'):
             outfit_name = tag.split('_', 1)[1]
@@ -411,6 +412,7 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
             for k, v in params.items(): await websocket.send_json({"action": "param", "id": k, "value": v})
                                 
             app.state.auto_outfit_locked = True
+            persist_current_outfit_state(app.state.current_time_period)
 
         elif tag.startswith('mood_'):
             mood_name = tag.split('_', 1)[1]
@@ -443,12 +445,15 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
         pass
 
 
-async def check_and_apply_outfit(websocket: WebSocket, is_initial=False):
-                                            
-    now = datetime.datetime.now()
+def get_time_period_info(now=None):
+
+
+
+
+    now = now or datetime.datetime.now()
     month, day, hour = now.month, now.day, now.hour
 
-                             
+                        
     holidays = {
         (1, 1): "元旦", (2, 14): "情人节", (3, 8): "妇女节", (4, 1): "愚人节",
         (5, 1): "劳动节", (5, 4): "青年节", (6, 1): "儿童节", (8, 1): "建军节",
@@ -457,65 +462,155 @@ async def check_and_apply_outfit(websocket: WebSocket, is_initial=False):
     }
 
     is_holiday = (month, day) in holidays
+    holiday_name = holidays.get((month, day))
+                                 
     is_cold = month in [10, 11, 12, 1, 2, 3]
-    current_intimacy = llm_brain.config.get("intimacy", 0)
 
-    target_outfit = None
-    new_time_period = "day"
-
-                                            
     if is_holiday:
-        new_time_period = f"holiday_{month}_{day}"
-        if is_initial: print(f"\n🎉 [系统提醒]: 今天是 {holidays[(month, day)]}！Romasha 换上了节日服装。")
-        target_outfit = "ethnic_cloak" if is_cold else "ethnic_wear"
-    elif hour >= 22 or hour <= 6:
-        if outfit_manager._current_outfit not in ["sleepwear", "towel"]:
-            if current_intimacy >= 75 and random.random() < 0.10:
-                                                           
-                target_outfit = "towel"
-            else:
-                target_outfit = "sleepwear"
-        else:
-            target_outfit = outfit_manager._current_outfit
-    elif hour >= 19:
-        new_time_period = "evening"
-        target_outfit = "uniform_dress"
-    else:
-        new_time_period = "day"
-        target_outfit = "uniform_tight"
+        return {
+            "period_key": f"holiday_{month}_{day}",
+            "holiday_name": holiday_name,
+            "is_holiday": True,
+            "is_cold": is_cold,
+            "is_night": False,
+            "is_evening": False,
+            "is_day": False
+        }
+
+    if hour >= 22 or hour <= 6:
+                                 
+        night_anchor = now.date() if hour >= 22 else (now - datetime.timedelta(days=1)).date()
+        return {
+            "period_key": f"night_{night_anchor.isoformat()}",
+            "holiday_name": None,
+            "is_holiday": False,
+            "is_cold": is_cold,
+            "is_night": True,
+            "is_evening": False,
+            "is_day": False
+        }
+
+    if hour >= 19:
+        return {
+            "period_key": f"evening_{now.date().isoformat()}",
+            "holiday_name": None,
+            "is_holiday": False,
+            "is_cold": is_cold,
+            "is_night": False,
+            "is_evening": True,
+            "is_day": False
+        }
+
+    return {
+        "period_key": f"day_{now.date().isoformat()}",
+        "holiday_name": None,
+        "is_holiday": False,
+        "is_cold": is_cold,
+        "is_night": False,
+        "is_evening": False,
+        "is_day": True
+    }
+
+def persist_current_outfit_state(period_key):
+
+
+
+    state = outfit_manager.export_state()
+    llm_brain.config["saved_outfit"] = state["outfit"]
+    llm_brain.config["saved_hair"] = state["hair"]
+    llm_brain.config["saved_outfit_period"] = period_key
+    llm_brain.save_config()
+
+async def check_and_apply_outfit(websocket: WebSocket, is_initial=False):
+                                            
+    now = datetime.datetime.now()
+    info = get_time_period_info(now)
+    period_key = info["period_key"]
+    current_intimacy = llm_brain.config.get("intimacy", 0)
+    saved_outfit = llm_brain.config.get("saved_outfit", "")
+    saved_hair = llm_brain.config.get("saved_hair", "")
+    saved_period = llm_brain.config.get("saved_outfit_period", "")
+
+    def decide_target_outfit():
+                                            
+            
+        if info["is_holiday"]:
+            return "ethnic_cloak" if info["is_cold"] else "ethnic_wear"
+
+            
+        if info["is_night"]:
+                                            
+            if current_intimacy >= 75:
+                         
+                roll_key = llm_brain.config.get("night_outfit_roll_key", "")
+                roll_result = llm_brain.config.get("night_outfit_result", "")
+                if roll_key == period_key and roll_result in ["towel", "sleepwear"]:
+                    return roll_result
+                result = "towel" if random.random() < 0.10 else "sleepwear"
+                llm_brain.config["night_outfit_roll_key"] = period_key
+                llm_brain.config["night_outfit_result"] = result
+                llm_brain.save_config()
+                return result
+            return "sleepwear"
+                 
+        if period_key.startswith("evening_"):
+            return "uniform_dress"
+        return "uniform_tight"
+    target_outfit = decide_target_outfit()
 
                                                  
+                                                
+                 
+                        
+                    
+                                                
     if is_initial:
-        app.state.current_time_period = new_time_period
-        params = outfit_manager.get_outfit_params(target_outfit)
+        app.state.current_time_period = period_key
+        if saved_outfit in outfit_manager.OUTFITS and saved_period == period_key:
+            outfit_manager.restore_state(saved_outfit, saved_hair if saved_hair in outfit_manager.HAIRSTYLES else None)
+            params = outfit_manager.get_outfit_params(saved_outfit,
+                                                      saved_hair if saved_hair in outfit_manager.HAIRSTYLES else None)
+        else:
+            params = outfit_manager.get_outfit_params(target_outfit)
         for k, v in params.items():
             await websocket.send_json({"action": "param", "id": k, "value": v})
         idx = motion_manager.get_motion_index('talk')
         await websocket.send_json({"action": "idle_motion", "group": "BaseMotions", "index": idx})
+        persist_current_outfit_state(period_key)
         return
 
+                                                
                         
-    if new_time_period != app.state.current_time_period:
-        app.state.current_time_period = new_time_period
+                                                
+                        
+    if period_key != app.state.current_time_period:
+        app.state.current_time_period = period_key
 
                                            
         if getattr(app.state, "auto_outfit_locked", False):
-            if new_time_period == "day":
+            if period_key.startswith("day_"):
                 app.state.auto_outfit_locked = False
             else:
                 return                       
 
         if target_outfit and target_outfit != outfit_manager._current_outfit:
-            if target_outfit == "towel":
+            if info["is_holiday"] and info["holiday_name"]:
+                print(
+                    f"\n🎉 [节日风信]: 今天是 {info['holiday_name']}，她似乎也顺着空气里那点微妙的节日气息，悄悄换上了更合时宜的衣装。")
+            elif target_outfit == "towel":
                 print(f"\n👗 [观察]: 夜深了，听到浴室传来隐约的水声后，Romasha裹着浴巾走了出来。")
             elif target_outfit == "sleepwear":
                 print(f"\n👗 [观察]: 留意到时间的推移，Romasha默默换上了轻薄的睡衣。")
             else:
                 print(f"\n👗 [观察]: 留意到时间的推移，Romasha默默换了一身适合现在的衣服。")
 
+            if info["is_holiday"] and info["holiday_name"]:
+                bubble_text = f"<span style='color:#ccc;'><i>(仿佛是顺着 {info['holiday_name']} 的气息，她悄悄换上了一身更合时宜的衣装...)</i></span><br>"
+            else:
+                bubble_text = "<span style='color:#ccc;'><i>(一阵轻微的窸窣声后，她换好了一身衣服...)</i></span><br>"
             await websocket.send_json({
                 "action": "bubble",
-                "html": "<span style='color:#ccc;'><i>(一阵轻微的窸窣声后，她换好了一身衣服...)</i></span><br>"
+                "html": bubble_text
             })
 
                       
@@ -525,6 +620,7 @@ async def check_and_apply_outfit(websocket: WebSocket, is_initial=False):
                 for k, v in params.items():
                     await websocket.send_json({"action": "param", "id": k, "value": v})
                     await asyncio.sleep(0.05)
+                persist_current_outfit_state(period_key)
 
             asyncio.create_task(delayed_apply())
 
@@ -1361,6 +1457,7 @@ async def romasha_endpoint(websocket: WebSocket):
                                                         "duration": 4000})
                         continue                                                      
                     except ValueError:
+                        print("⚠️ [命运流转]: 章节刻度没有被正确拨动。若要切换世界线阶段，请使用 /chapter 2 这样的写法。")
                         pass
 
                                  
@@ -1454,6 +1551,18 @@ async def romasha_endpoint(websocket: WebSocket):
                     llm_brain.config["current_location"] = "罗玛莎的房间门口"
                     llm_brain.config["current_chapter"] = 1
                     llm_brain.config["is_first_encounter"] = True                          
+                                                                      
+                    llm_brain.config["saved_outfit"] = ""
+                    llm_brain.config["saved_hair"] = ""
+                    llm_brain.config["saved_outfit_period"] = ""
+                    llm_brain.config["night_outfit_roll_key"] = ""
+                    llm_brain.config["night_outfit_result"] = ""
+                    llm_brain.config["last_recent_chat_time"] = 0
+
+                                                  
+                    outfit_manager.restore_state(None, None)
+                    app.state.auto_outfit_locked = False
+                    app.state.current_time_period = "unknown"
                     llm_brain.save_config()
                     print("💔 [记忆消散]: 曾经相处的点滴如沙般流逝，你们回到了最初相遇时的陌生与戒备。\n")
 
