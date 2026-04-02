@@ -22,6 +22,7 @@ import motion_manager
 import outfit_manager
 import story_manager
 import lorebook_manager
+import map_manager
 
 import builtins
 import logging
@@ -366,6 +367,20 @@ async def execute_tag(websocket: WebSocket, tag: str, state_dict: dict):
         elif tag.startswith('move_to_'):
             new_loc = tag[8:].strip()                      
             if new_loc:
+                                                            
+                                                 
+                                                            
+                         
+                                       
+                                  
+                                                                    
+                if new_loc not in map_manager.map_instance.flat_locations:
+                    map_manager.map_instance.register_dynamic_location(
+                        new_loc,
+                        lore=f"{new_loc}：这是在互动过程中最近抵达并确认存在的新地点，目前仍缺少正式地图记录。"
+                    )
+                    print(f"📍 [动态地点建档]: 已自动为新地点【{new_loc}】建立地图档案。")
+                          
                 llm_brain.config["current_location"] = new_loc
                 llm_brain.save_config()
                 print(f"\n🚶‍♀️ [步履回响]: 伴随着轻微的脚步声，她离开了原地，朝着【{new_loc}】走去。")
