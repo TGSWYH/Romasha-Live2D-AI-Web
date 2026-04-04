@@ -807,8 +807,9 @@
                     
                     case 'sys_bubble_unlock':
                         isShowingSysBubble = false;
-                        currentChatHtml = "";
-                        chatBubble.style.opacity = 0;
+                        
+                        
+                        hideNormalBubble(true);
                         break;
 
                     case "story_chunk":
@@ -855,6 +856,28 @@
 
         window.playRomashaVoice = async function(audioUrl) {
             
+            
+            
+            
+            
+            
+            
+
+            bubbleToken++;
+            const myBubbleToken = bubbleToken;
+
+            
+            bubbleControlledByVoice = true;
+            bubbleWaitForAudioEnd = true;
+            audioBoundBubbleToken = myBubbleToken;
+
+            
+            if (bubbleTimeout) {
+                clearTimeout(bubbleTimeout);
+                bubbleTimeout = null;
+            }
+
+            
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
@@ -864,9 +887,14 @@
 
             
             if (currentAudioSource) {
-                currentAudioSource.onended = null; 
+                
+                
+                
+                
+                currentAudioSource.onended = null;
                 currentAudioSource.stop();
                 currentAudioSource.disconnect();
+                currentAudioSource = null;
             }
 
             try {
@@ -892,8 +920,20 @@
 
                 
                 currentAudioSource.onended = () => {
-                    isAudioPlaying = false; 
+                    
+                    
+                    
+                    
+                    
+                    
+                    isAudioPlaying = false;
                     mouthOpenY = 0;
+
+                    
+                    setTimeout(() => {
+                        hideBubbleWhenAudioEnds(myBubbleToken);
+                    }, 250);
+
                     if (ws && ws.readyState === WebSocket.OPEN) {
                         ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_END' }));
                     }
@@ -906,12 +946,40 @@
                     ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_START' }));
                 }
 
-                isAudioPlaying = true; 
+                
+                
+                
+                
+                
+                isAudioPlaying = true;
+                bindCurrentBubbleToAudio();
+
                 
                 currentAudioSource.start(0);
 
             } catch (e) {
                 console.error("音频播放失败:", e);
+
+                
+                
+                
+                
+                
+                
+                
+                
+                isAudioPlaying = false;
+                mouthOpenY = 0;
+
+                bubbleWaitForAudioEnd = false;
+                bubbleControlledByVoice = false;
+                audioBoundBubbleToken = 0;
+
+                
+                if (currentChatHtml) {
+                    scheduleBubbleHideByText(currentChatHtml, myBubbleToken);
+                }
+
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'system', text: 'EVENT:AUDIO_END' }));
@@ -923,14 +991,31 @@
         window.stopRomashaVoice = function() {
             if (currentAudioSource) {
                 
+                
+                
+                
+                
+                
                 currentAudioSource.onended = null;
                 currentAudioSource.stop();
                 currentAudioSource.disconnect();
                 currentAudioSource = null;
             }
-            isAudioPlaying = false; 
+
+            
+            isAudioPlaying = false;
             mouthOpenY = 0;
-            actionWaitAudioEnd = false; 
+            actionWaitAudioEnd = false;
+
+            
+            
+            
+            
+            
+            
+            if (bubbleWaitForAudioEnd) {
+                hideNormalBubble(true);
+            }
         };
 
         
@@ -948,8 +1033,125 @@
         let isShowingSysBubble = false; 
         let touchBusy = false; 
 
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        let bubbleToken = 0;
+
+        
+        
+        
+        
+        let bubbleWaitForAudioEnd = false;
+
+        
+        
+        
+        let audioBoundBubbleToken = 0;
+
+        
+        
+        
+        let bubbleControlledByVoice = false;
+
+        
+        
+        
+        
+        
+        
+        function hideNormalBubble(force = false) {
+            
+            if (isShowingSysBubble && !force) return;
+
+            chatBubble.style.opacity = 0;
+            currentChatHtml = "";
+            bubbleWaitForAudioEnd = false;
+            bubbleControlledByVoice = false;
+            audioBoundBubbleToken = 0;
+
+            if (bubbleTimeout) {
+                clearTimeout(bubbleTimeout);
+                bubbleTimeout = null;
+            }
+        }
+
+        
+        
+        
+        
+        
+        function scheduleBubbleHideByText(htmlText, token) {
+            if (bubbleTimeout) {
+                clearTimeout(bubbleTimeout);
+                bubbleTimeout = null;
+            }
+
+            
+            const plainText = htmlText.replace(/<[^>]+>/g, '').trim();
+
+            
+            const displayTime = Math.max(5500, plainText.length * 120);
+
+            bubbleTimeout = setTimeout(() => {
+                
+                
+                if (token !== bubbleToken) return;
+
+                hideNormalBubble();
+            }, displayTime);
+        }
+
+        
+        
+        
+        
+        
+        
+        function bindCurrentBubbleToAudio() {
+            bubbleWaitForAudioEnd = true;
+            bubbleControlledByVoice = true;
+            audioBoundBubbleToken = bubbleToken;
+
+            if (bubbleTimeout) {
+                clearTimeout(bubbleTimeout);
+                bubbleTimeout = null;
+            }
+        }
+
+        
+        
+        
+        
+        function hideBubbleWhenAudioEnds(endedToken) {
+            
+            if (!bubbleWaitForAudioEnd) return;
+
+            
+            if (endedToken !== audioBoundBubbleToken) return;
+            if (endedToken !== bubbleToken) return;
+
+            hideNormalBubble();
+        }
+
         window.showBubble = function(htmlText) {
-            currentChatHtml = htmlText; 
+            
+            
+            
+            
+            
+            
+            
+            
+            currentChatHtml = htmlText;
+
             
             if (isShowingSysBubble) return;
 
@@ -957,14 +1159,50 @@
             chatBubble.style.opacity = 1;
             chatBubble.scrollTop = chatBubble.scrollHeight;
 
-            if(bubbleTimeout) clearTimeout(bubbleTimeout);
-            if(sysBubbleTimeout) clearTimeout(sysBubbleTimeout); 
+            
+            if (sysBubbleTimeout) {
+                clearTimeout(sysBubbleTimeout);
+                sysBubbleTimeout = null;
+            }
 
-            let displayTime = Math.max(5500, htmlText.replace(/<[^>]+>/g, '').length * 120);
-            bubbleTimeout = setTimeout(() => {
-                chatBubble.style.opacity = 0;
-                currentChatHtml = ""; 
-            }, displayTime);
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            const voiceEnabledOnUI = (typeof voiceState !== 'undefined' && voiceState !== 2);
+
+            
+            if (voiceEnabledOnUI && bubbleControlledByVoice) {
+                if (bubbleTimeout) {
+                    clearTimeout(bubbleTimeout);
+                    bubbleTimeout = null;
+                }
+                return;
+            }
+
+            
+            if (voiceEnabledOnUI && isAudioPlaying) {
+                bindCurrentBubbleToAudio();
+                return;
+            }
+
+            
+            bubbleToken++;
+            scheduleBubbleHideByText(htmlText, bubbleToken);
         };
 
         
@@ -1224,12 +1462,12 @@
         else gyroToggleBtn.innerText = '💤';
 
         
-        window.toggleTracking = function(state) {
-            trackingEnabled = state;
-            if (!state) {
-                if(window.romashaModel) window.romashaModel.internalModel.focusController.focus(0, 0);
-            }
-        };
+        
+            
+            
+                
+            
+        
 
         
         const resetBtn = document.getElementById('reset-btn');
@@ -1253,8 +1491,13 @@
                 ws.send(JSON.stringify({ type: 'track_cmd', state: isTrackingOn }));
             }
 
-            targetFocusX = 0; targetFocusY = 0;
-            baseGravX = null; baseGravY = null;
+            targetFocusX = 0;
+            targetFocusY = 0;
+            currentFocusX = 0;
+            currentFocusY = 0;
+            focusPointerActive = false;
+            baseGravX = null;
+            baseGravY = null;
 
             if (trackingMode === 0) {
                 gyroToggleBtn.innerText = '👁️';
@@ -1444,6 +1687,96 @@
         let targetFocusY = 0;
 
         
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        const focusFollowConfig = {
+            headCenterX: 0.45,   
+            headCenterY: 0.27,   
+            horizontalRange: 0.22, 
+            verticalRange: 0.16,   
+            smooth: 0.24,          
+            returnSmooth: 0.08,    
+            maxX: 1.0,             
+            maxY: 1.0              
+        };
+
+        
+        let currentFocusX = 0;
+        let currentFocusY = 0;
+        let focusPointerActive = false;
+
+        
+        
+        
+        function clamp(val, min, max) {
+            return Math.max(min, Math.min(max, val));
+        }
+
+        
+        
+        
+        
+        
+        
+        
+        function getFocusTargetFromPoint(clientX, clientY) {
+            if (!window.romashaModel) {
+                return { x: 0, y: 0 };
+            }
+
+            const bounds = window.romashaModel.getBounds();
+
+            
+            if (!bounds || bounds.width <= 0 || bounds.height <= 0) {
+                return { x: 0, y: 0 };
+            }
+
+            
+            const headCenterScreenX = bounds.x + bounds.width * focusFollowConfig.headCenterX;
+            const headCenterScreenY = bounds.y + bounds.height * focusFollowConfig.headCenterY;
+
+            
+            const deltaX = clientX - headCenterScreenX;
+            const deltaY = clientY - headCenterScreenY;
+
+            
+            
+            const normalizedX = deltaX / (bounds.width * focusFollowConfig.horizontalRange);
+            const normalizedY = deltaY / (bounds.height * focusFollowConfig.verticalRange);
+
+            
+            
+            
+            
+            let focusX = normalizedX;
+            let focusY = -normalizedY;
+
+            
+            focusX = clamp(focusX, -focusFollowConfig.maxX, focusFollowConfig.maxX);
+            focusY = clamp(focusY, -focusFollowConfig.maxY, focusFollowConfig.maxY);
+
+            return { x: focusX, y: focusY };
+        }
+
+        
+        
+        
+        function setFocusTargetByPoint(clientX, clientY) {
+            const focus = getFocusTargetFromPoint(clientX, clientY);
+            targetFocusX = focus.x;
+            targetFocusY = focus.y;
+        }
+
+        
         let baseGravX = null;
         let baseGravY = null;
 
@@ -1591,7 +1924,30 @@
 
                     
                     if (model.internalModel.focusController) {
-                        model.internalModel.focusController.focus(targetFocusX, targetFocusY);
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        
+                        const lerpSpeed = focusPointerActive ? focusFollowConfig.smooth : focusFollowConfig.returnSmooth;
+
+                        
+                        if (!trackingEnabled || trackingMode === 2) {
+                            targetFocusX = 0;
+                            targetFocusY = 0;
+                        } else if (trackingMode === 0 && !focusPointerActive) {
+                            
+                            targetFocusX = 0;
+                            targetFocusY = 0;
+                        }
+
+                        currentFocusX += (targetFocusX - currentFocusX) * lerpSpeed;
+                        currentFocusY += (targetFocusY - currentFocusY) * lerpSpeed;
+
+                        model.internalModel.focusController.focus(currentFocusX, currentFocusY);
                     }
 
                     
@@ -1621,11 +1977,15 @@
             });
 
             
+            
+            
             window.toggleTracking = function(state) {
                 trackingEnabled = state;
                 if (!state) {
+                    
                     targetFocusX = 0; 
                     targetFocusY = 0;
+                    focusPointerActive = false;
                 }
             };
 
@@ -1660,13 +2020,34 @@
                 }
                 
                 else if (trackingEnabled && trackingMode === 0 && e.touches.length === 1 && !initialPinchDistance) {
-                    targetFocusX = (e.touches[0].clientX / window.innerWidth) * 2 - 1;
-                    targetFocusY = -((e.touches[0].clientY / window.innerHeight) * 2 - 1); 
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    
+                    focusPointerActive = true;
+                    setFocusTargetByPoint(e.touches[0].clientX, e.touches[0].clientY);
                 }
             }, {passive: false});
 
             window.addEventListener('touchend', (e) => {
                 if (e.touches.length < 2) initialPinchDistance = null;
+                
+                if (e.touches.length === 0) {
+                    focusPointerActive = false;
+                }
+            });
+
+            window.addEventListener('touchcancel', (e) => {
+                if (e.touches.length < 2) initialPinchDistance = null;
+                if (e.touches.length === 0) {
+                    focusPointerActive = false;
+                }
             });
 
             
