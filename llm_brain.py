@@ -79,7 +79,7 @@ def load_config():
         "cosy_character": "Romasha",                                      
         "cosy_mode": "指令控制",                      
                                          
-        "mimo_tts_api_key": "sk-c6cd6ibwhbz4e8p4lk3yj0si826abz8uo7li9x4cu7zhdfwd",                                                  
+        "mimo_tts_api_key": "api",                                                  
         "mimo_tts_base_url": "https://api.xiaomimimo.com/v1",
         "mimo_tts_model": "mimo-v2.5-tts-voiceclone",          
         "mimo_tts_ref_audio": "E:/Game/Romasha_Voice/full5_356_demo.wav",                                    
