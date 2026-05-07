@@ -138,3 +138,61 @@ def clear_all_memories():
         print("\n🌀 [时光倒流] 所有相处的点滴如沙般流逝，你们回到了最初那份未知的初见。")
     except Exception as e:
         print(f"⚠️ [命运纠缠]: 过去的痕迹似乎难以抹除... ({e})")
+
+                                                              
+                      
+                                                              
+                                             
+                            
+                                                              
+def retrieve_memories_with_debug(current_query, current_intimacy, n_results=3):
+
+
+
+
+
+
+
+    col = _get_collection()
+    if col.count() == 0:
+        return []
+
+    actual_n = min(n_results, col.count())
+    debug_list = []
+
+    try:
+        with _db_lock:
+            results = col.query(
+                query_texts=[current_query],
+                n_results=actual_n,
+                include=["documents", "metadatas", "distances"]
+            )
+            documents = results.get('documents', [[]])[0]
+            metadatas = results.get('metadatas', [[]])[0]
+            distances = results.get('distances', [[]])[0]
+
+            for doc, meta, dist in zip(documents, metadatas, distances):
+                past_intimacy = meta.get("intimacy_at_time", 0)
+                past_ts = meta.get("timestamp", "")
+                       
+                try:
+                    import datetime as _dt
+                    human_time = _dt.datetime.fromtimestamp(
+                        int(past_ts) / 1000
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    human_time = past_ts
+
+                debug_list.append({
+                    "distance": dist,
+                    "past_intimacy": past_intimacy,
+                    "past_desc": get_intimacy_desc(past_intimacy),
+                    "time": human_time,
+                    "doc": doc
+                })
+
+        return debug_list
+
+    except Exception as e:
+        print(f"⚠️ [调试检索失败]: {e}")
+        return []

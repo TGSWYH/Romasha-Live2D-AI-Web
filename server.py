@@ -24,6 +24,7 @@ import story_manager
 import lorebook_manager
 import map_manager
 import relationship_manager
+from api_router import chat_once
 
 import builtins
 import logging
@@ -135,12 +136,41 @@ app.state.current_time_period = "unknown"
 async def translate_to_japanese_async(text: str):
     def _translate():
         try:
-            api_type = llm_brain.config.get("api_type", "openai").lower()
+                                                                          
             messages = [
-                {"role": "system",
-                 "content": "你是一个精准的中译日翻译器，请将玩家的中文台词精准直译翻译成对应的日文。【极其重要】：如果文本中包含形如 [quick_breath]、[sigh] 等英文控制标签，你必须原样保留它们，并将它们插入到日文中合理的位置。绝对不要翻译这些方括号内的标签！只需要输出最终的日文结果，不要任何解释。"},
+                {"role": "system", "content": (
+                    "你是一个严格的中译日翻译器。你的任务是：只把【可朗读的自然语言正文】从中文翻译成自然日文，"
+                    "并且必须完整保留所有语音控制标签、风格标签和特殊控制符。"
+
+                    "\n\n【绝对不可变标签规则】"
+                    "\n1. 凡是被英文方括号包住的片段，形如 [任何内容]，都必须视为【不可变控制标签】。"
+                    "无论方括号内是中文、英文、日文、符号、情绪词、动作词、声音词，都绝对禁止翻译、改写、增删或替换。"
+                    "例如：[吸气] 必须仍然输出 [吸气]，禁止变成 [息を吸う]；[紧张] 必须仍然输出 [紧张]，禁止变成 [緊張]；"
+                    "[声音变小] 必须仍然输出 [声音变小]，禁止变成 [声が小さくなる]；[quick_breath] 必须仍然输出 [quick_breath]。"
+
+                    "\n2. 凡是文本开头连续出现的半角圆括号风格标签，形如 (任何内容)，都必须视为【不可变风格标签】。"
+                    "圆括号内部的所有文字都禁止翻译、禁止改写、禁止替换为日文。"
+                    "例如：(害羞 嘴硬 甜蜜) 必须仍然输出 (害羞 嘴硬 甜蜜)，禁止变成 (恥ずかしい 強がり 甘い)。"
+
+                    "\n3. 标签的括号类型、半角/全角形式、内部空格、内部顺序，都必须和原文完全一致。"
+                    "你不能把 [] 改成【】或「」，不能把半角 () 改成全角（），不能改变标签位置，除非为了让日文语序自然而在极小范围内移动整个完整标签。"
+                    "移动时也必须整体移动，绝不能拆开标签。"
+
+                    "\n\n【翻译范围】"
+                    "\n你只能翻译标签之外的正文。"
+                    "所有 [方括号标签] 和开头的 (圆括号风格标签) 都不是正文，不参与翻译。"
+                    "如果一句话由标签和正文混合组成，请保留标签原样，只翻译标签外面的中文。"
+
+                    "\n\n【输出前自检】"
+                    "\n输出前请逐字检查：原文中出现过的每一个 [...] 标签，必须在译文中以完全相同的形式出现；"
+                    "原文开头出现过的每一个 (...) 风格标签，也必须在译文中以完全相同的形式出现。"
+                    "如果你发现自己把标签翻译成了日文，必须立刻改回原样。"
+
+                    "\n\n只输出最终日文结果，不要解释，不要添加说明，不要加引号。"
+                )},
                 {"role": "user", "content": text}
             ]
+            '''
             if api_type == "openai":
                 response = llm_brain.client.chat.completions.create(
                     model=llm_brain.TARGET_MODEL,
@@ -160,6 +190,26 @@ async def translate_to_japanese_async(text: str):
                 resp = requests.post(base_url, json=payload, headers=headers, timeout=30.0)
                 resp.raise_for_status()
                 return resp.json().get("message", {}).get("content", text).strip()
+            '''
+                                                                   
+                         
+                                                                   
+                                          
+                               
+             
+                  
+                                         
+                                                       
+                                                                   
+            return chat_once(
+                config=llm_brain.config,
+                messages=messages,
+                temperature=0.3,
+                timeout=30.0,
+                use_background=True,
+                purpose="tts_translate_to_japanese"
+            )
+
         except Exception as e:
             print(f"\n⚠️ [意识干扰]: 那种古老的语调在脑海中变得模糊，你只能靠直觉去理解她想表达的意思...")
             print(f"   (🛠️ 隐秘线索: 思绪转译受阻，已回退至熟悉的语言 - {str(e)[:50]})")
@@ -211,7 +261,7 @@ def infer_cosy_instruct_from_tags(raw_text: str) -> str:
 
 
     if not raw_text:
-        return "温柔轻软的少女音"
+        return "甜美软糯清脆的少女音"
 
     text_lower = raw_text.lower()
 
@@ -219,58 +269,52 @@ def infer_cosy_instruct_from_tags(raw_text: str) -> str:
                     
                                    
     mood_base = {
-        "mood_talk_alc": "害羞娇柔",
-        "mood_talk_ero": "委屈含泪",
-        "mood_talk": "温柔轻软",
-        "mood_neutral": "平静轻柔",
-        "mood_wait": "安静压低声音",
-        "mood_wait_haji": "小声迟疑嘀咕",
+        "mood_talk_alc": "害羞娇羞甜美软糯",
+        "mood_talk_ero": "委屈含泪甜美楚楚可怜",
+        "mood_talk": "甜美温柔清甜软糯",
+        "mood_neutral": "平静甜美轻柔清甜",
+        "mood_wait": "安静小声甜美软萌",
+        "mood_wait_haji": "小声嘀咕甜美可爱",
     }
-
                                    
                       
                                    
     act_overlay = {
                  
-        "act_amazing": "惊讶慌乱",
-        "act_smallamazing": "轻微惊讶",
-        "act_guruguru": "极度羞涩混乱",
-        "act_trouble": "不知所措",
-        "act_smallgikuri": "心虚慌张",
-        "act_question": "疑惑试探",
-
+        "act_amazing": "惊讶慌乱甜美可爱",
+        "act_smallamazing": "轻微惊讶甜美软萌",
+        "act_guruguru": "极度羞涩混乱甜美软糯",
+        "act_trouble": "不知所措甜美颤抖",
+        "act_smallgikuri": "心虚慌张甜美小奶音",
+        "act_question": "疑惑试探甜美清甜",
                       
-        "act_angry": "羞愤抗拒",
-        "act_smallangry": "小声抗议",
-        "act_smallangryb": "压抑不满",
-        "act_donbiki": "嫌弃退缩",
-        "act_poster": "坚决拒绝",
-        "act_chui": "轻声制止",
-
+        "act_angry": "羞愤傲娇奶凶甜美",
+        "act_smallangry": "小声抗议甜美嘟囔",
+        "act_smallangryb": "压抑不满甜美软萌",
+        "act_donbiki": "嫌弃退缩甜美无语",
+        "act_poster": "坚决拒绝但声音甜美清脆",
+        "act_chui": "轻声制止甜美嘟嘴",
                  
-        "act_sad": "委屈难过",
-        "act_relief": "放松轻叹",
-        "act_iyaiya": "无奈羞耻",
-
+        "act_sad": "委屈难过甜美楚楚可怜",
+        "act_relief": "放松轻叹甜美温柔",
+        "act_iyaiya": "无奈羞耻甜美可爱",
                       
-        "act_hatujo": "极度羞涩喘息",
-        "act_skirt": "受惊娇羞",
-        "act_skirt_bust": "胸口被碰到后慌乱羞涩",
-        "act_skirt_hip": "臀部被碰到后慌乱羞涩",
-        "act_taol_fall": "浴巾滑落后极度慌乱羞耻",
-        "act_doya": "脸红得意",
-        "act_smalldoya": "小小得意可爱",
-
+        "act_hatujo": "极度羞涩喘息甜美软糯",
+        "act_skirt": "受惊娇羞甜美小奶音",
+        "act_skirt_bust": "胸口被碰到后慌乱羞涩甜美颤抖",
+        "act_skirt_hip": "臀部被碰到后慌乱羞涩甜美软糯",
+        "act_taol_fall": "浴巾滑落后极度慌乱羞耻甜美颤抖",
+        "act_doya": "脸红得意甜美俏皮",
+        "act_smalldoya": "小小得意甜美可爱",
                  
-        "act_smile": "开心温柔",
-        "act_smallsmile": "轻柔微笑",
-        "act_troublesmile": "尴尬赔笑",
-        "act_victory": "得意轻快",
-
+        "act_smile": "开心甜美温柔清甜",
+        "act_smallsmile": "轻柔微笑甜美温柔",
+        "act_troublesmile": "尴尬赔笑甜美可爱",
+        "act_victory": "得意轻快甜美俏皮",
             
-        "act_device": "轻声走神",
-        "act_neutral": "平静轻柔",
-        "act_talk": "自然温柔",
+        "act_device": "轻声走神甜美慵懒",
+        "act_neutral": "平静甜美轻柔",
+        "act_talk": "自然甜美温柔清甜",
     }
 
     mood_part = None
@@ -306,6 +350,188 @@ def infer_cosy_instruct_from_tags(raw_text: str) -> str:
             
     return "温柔轻软的少女音"
 
+                                            
+                                  
+                                            
+
+                          
+_mimo_ref_cache = {"path": "", "data_uri": None}
+
+
+def load_mimo_ref_audio_base64():
+
+    ref_path = llm_brain.config.get("mimo_tts_ref_audio", "")
+    if not ref_path or not os.path.exists(ref_path):
+        return None, "MiMo 参考音频未配置或文件不存在"
+
+    if ref_path == _mimo_ref_cache["path"] and _mimo_ref_cache["data_uri"]:
+        return _mimo_ref_cache["data_uri"], None
+
+    try:
+        with open(ref_path, "rb") as f:
+            audio_bytes = f.read()
+        fmt = llm_brain.config.get("mimo_tts_ref_format", "mp3").lower()
+        mime = {"mp3": "audio/mpeg", "wav": "audio/wav"}.get(fmt, "audio/mpeg")
+        b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        uri = f"data:{mime};base64,{b64}"
+        _mimo_ref_cache["path"] = ref_path
+        _mimo_ref_cache["data_uri"] = uri
+        print(f"🎤 [MiMo TTS]: 参考音频已加载并缓存 ({fmt}, {len(audio_bytes)} bytes)")
+        return uri, None
+    except Exception as e:
+        return None, f"读取参考音频失败: {str(e)[:100]}"
+
+
+def infer_mimo_direction_from_tags(raw_text):
+
+
+
+
+
+    text_lower = raw_text.lower()
+
+    mood_desc = {
+        "mood_talk_alc": "角色正害羞得脸红，声音甜腻软糯带着迟疑。指导：语速正常偏快，气息微颤，尾音甜美上扬。",
+        "mood_talk_ero": "角色正处于极度委屈或含泪的状态。指导：语速正常，声音极轻极软，带着明显的哽咽感和鼻音，声线底色依然是甜美楚楚可怜的少女音。",
+        "mood_talk": "角色正在温柔平和地交谈。指导：语速正常，声音甜美清甜，语调自然轻柔，像和信任的人甜丝丝地聊天。",
+        "mood_neutral": "角色表情平静，内心可能在思考。指导：语速正常，声音平稳甜美轻柔，节奏均匀。",
+        "mood_wait": "角色正屏住呼吸一动不动。指导：语速正常但声音极轻极小，像是害怕打破什么东西，每个字都带着甜软的气声。",
+        "mood_wait_haji": "角色正处于纠结嘀咕的状态。指导：语速正常偏快，声音偏小，像自言自语般碎碎念，带着甜美可爱的轻微焦虑。",
+    }
+    act_desc = {
+        "act_amazing": "突然被惊到，甜美可爱地惊呼一声，声音骤然拔高然后迅速压低。",
+        "act_smallamazing": "轻微惊讶，发出了一声短促甜软的'诶'。",
+        "act_angry": "又羞又气，奶凶奶凶地声音尖锐但带着颤抖，像小动物甜丝丝地炸毛。",
+        "act_smallangry": "小声甜美地抗议，嘟着嘴说话，声音闷闷的软萌可爱。",
+        "act_sad": "难过得快要哭出来，声音压得很低带着鼻音，但声线底色依然是甜美楚楚可怜的。",
+        "act_hatujo": "极度害羞到脸都烧起来了，说话断断续续，气息完全不稳，声线甜腻腻的。",
+        "act_smile": "真心开心地笑着说话，声音甜美明亮上扬，带着笑意。",
+        "act_smallsmile": "嘴角微微翘起的温柔微笑，声音甜美平静且暖。",
+        "act_trouble": "完全不知所措，声音甜美软萌地飘忽不定。",
+        "act_smallgikuri": "心虚地一抖，甜美小奶音突然压低了半拍。",
+        "act_question": "疑惑地歪头，甜美清甜的尾音上扬带着试探性语气。",
+        "act_doya": "小小得意，声音甜美俏皮，语调微微上扬。",
+        "act_donbiki": "嫌弃退缩，声音里带着甜美无语的一丝嫌弃。",
+        "act_poster": "坚决拒绝，声音甜美清脆而短促，每个字都咬得很清楚。",
+        "act_relief": "松了一口气，声音甜美放松下来带着一声轻轻的叹息。",
+        "act_victory": "得意洋洋，语速正常偏快，声音甜美高扬带着藏不住的开心。",
+        "act_skirt": "突然被碰到裙摆而慌张，发出了短促甜美的惊呼。",
+        "act_skirt_bust": "胸前被碰到后极度慌乱，甜美颤抖的尖叫般的惊恐。",
+        "act_taol_fall": "浴巾滑落瞬间极度慌乱羞耻，甜美颤抖到破音了。",
+    }
+
+    mood_part, act_part = "", ""
+    for k, v in mood_desc.items():
+        if f"[{k}]" in text_lower:
+            mood_part = v
+            break
+    for k, v in act_desc.items():
+        if f"[{k}]" in text_lower:
+            act_part = v
+            break
+
+    base = "角色：一个十几岁的少女，声线清脆软糯，说话时带着自然的少女感。"
+    if mood_part and act_part:
+        return f"{base}{mood_part}{act_part}"
+    if act_part:
+        return f"{base}{act_part}"
+    if mood_part:
+        return f"{base}{mood_part}"
+    return f"{base}指导：用温柔清甜的少女音自然地说话，语速适中，气息轻柔。"
+
+
+def parse_mimo_from_raw(raw_text, clean_text):
+
+
+
+
+
+                                         
+    match = re.match(r'^(.*?)<\|mimo_dir\|>(.*?)<\|mimo_end\|>(.*)$', clean_text, re.DOTALL)
+    if match:
+        director = re.sub(r'\[.*?\]', '', match.group(2)).strip()
+        speech = match.group(3).strip()
+        if len(director) < 5:
+            director = infer_mimo_direction_from_tags(raw_text)
+            print(f"🎬 [MiMo 自动修正]: 导演指令过短，已根据标签推断 -> {director}")
+        else:
+            print(f"🎬 [MiMo 导演]: {director}")
+        return director, speech
+
+                                          
+    match2 = re.match(r'^(.*?)<\|endofprompt\|>(.*)$', clean_text, re.DOTALL)
+    if match2:
+        speech = match2.group(2).strip()
+    else:
+        speech = clean_text
+
+    director = infer_mimo_direction_from_tags(raw_text)
+    print(f"🎬 [MiMo 自动补偿]: 未检测到导演指令，已根据标签推断 -> {director}")
+    return director, speech
+
+
+def mimo_tts_request(director_text, speech_text):
+
+    try:
+        ref_uri, ref_err = load_mimo_ref_audio_base64()
+        if ref_err:
+            print(f"\n🔇 [MiMo TTS]: {ref_err}")
+            return "", False, "connection_error"
+
+        api_key = llm_brain.config.get("mimo_tts_api_key", "")
+        if not api_key:
+            print("\n🔇 [MiMo TTS]: API Key 未配置，请在 config.json 中填写 mimo_api_key。")
+            return "", False, "connection_error"
+
+        base_url = llm_brain.config.get("mimo_tts_base_url", "https://api.xiaomimimo.com/v1")
+        model = llm_brain.config.get("mimo_tts_model", "mimo-v2.5-tts-voiceclone")
+
+        url = f"{base_url.rstrip('/')}/chat/completions"
+        headers = {"api-key": api_key, "Content-Type": "application/json"}
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": director_text},
+                {"role": "assistant", "content": speech_text}
+            ],
+            "audio": {
+                "format": "wav",
+                "voice": ref_uri
+            }
+        }
+
+        print(f"🎤 [MiMo TTS]: 正在发送语音合成请求...")
+        response = requests.post(url, json=payload, headers=headers,
+                                 proxies={"http": None, "https": None}, timeout=90.0)
+
+        if response.status_code == 200:
+            resp_data = response.json()
+            try:
+                b64_audio = resp_data["choices"][0]["message"]["audio"]["data"]
+                audio_bytes = base64.b64decode(b64_audio)
+                ts = int(time.time() * 1000)
+                fname = f"temp_response_{ts}.wav"
+                fpath = os.path.join("web", "audio", fname)
+                with open(fpath, "wb") as f:
+                    f.write(audio_bytes)
+                print(f"🎤 [MiMo TTS]: 语音合成成功！")
+                return f"/audio/{fname}?t={ts}", True, "success"
+            except (KeyError, IndexError, TypeError) as e:
+                print(f"\n🔇 [MiMo TTS]: 响应解析失败 -> {e}")
+                return "", False, "api_error"
+        else:
+            print(f"\n🔇 [MiMo TTS]: API 返回错误，状态码 {response.status_code}: {response.text[:200]}")
+            return "", False, "api_error"
+
+    except requests.exceptions.ConnectionError:
+        print(f"\n🔇 [MiMo TTS]: 无法连接到 MiMo API 服务器。")
+        return "", False, "connection_error"
+    except requests.exceptions.Timeout:
+        print(f"\n🔇 [MiMo TTS]: 请求超时（语音克隆可能需要更长时间）。")
+        return "", False, "timeout"
+    except Exception as e:
+        print(f"\n🔇 [MiMo TTS]: 未知错误: {str(e)[:150]}")
+        return "", False, "unknown_error"
 
 def parse_cosyvoice_prompt(raw_text: str, clean_text: str, tts_engine: str):
 
@@ -418,7 +644,26 @@ async def process_tts(raw_text: str):
                                             
                                                 
     tts_engine = llm_brain.config.get("tts_engine", "cosyvoice")
-    instruct_text, clean_text = parse_cosyvoice_prompt(raw_text, clean_text, tts_engine)
+                
+    instruct_text = ""               
+    mimo_director = ""          
+    mimo_speech = ""          
+    final_text = clean_text
+
+    if tts_engine == "mimo":
+        mimo_director, mimo_speech = parse_mimo_from_raw(raw_text, clean_text)
+                                
+        mimo_speech = re.sub(r'\[(act_|mood_|wear_|hair_|intimacy_|set_name_|move_to_|sys_chapter_up).*?\]', '',
+                             mimo_speech)
+        mimo_speech = re.sub(r'<\|endofprompt\|>', '', mimo_speech).strip()
+        final_text = mimo_speech               
+    elif tts_engine == "cosyvoice":
+        instruct_text, final_text = parse_cosyvoice_prompt(raw_text, clean_text, tts_engine)
+    else:
+                                   
+        match = re.match(r'^(.*?)<\|endofprompt\|>(.*)$', clean_text, re.DOTALL)
+        if match:
+            final_text = match.group(2).strip()
 
                                                 
                       
@@ -428,10 +673,12 @@ async def process_tts(raw_text: str):
                                                    
                                                 
              
-    if llm_brain.config.get("tts_translate_to_ja", False) and clean_text:
+    if llm_brain.config.get("tts_translate_to_ja", False) and final_text:
         print("\n🌐 [古老回音]: 她的嘴唇微动，吐出的似乎是前文明遗留下的某种古老而温柔的语调...")
-        clean_text = await translate_to_japanese_async(clean_text)
-        print(f"   (✨ 呢喃: {clean_text})")
+        final_text = await translate_to_japanese_async(final_text)
+        if tts_engine == "mimo":
+            mimo_speech = final_text                      
+        print(f"   (✨ 呢喃: {final_text})")
 
                   
     def _tts_request():
@@ -439,7 +686,12 @@ async def process_tts(raw_text: str):
             tts_engine = llm_brain.config.get("tts_engine", "cosyvoice")
             proxies = {"http": None, "https": None}
 
-            if tts_engine == "cosyvoice":
+            if tts_engine == "mimo":
+                if not mimo_speech.strip():
+                    return "", True, "empty"
+                return mimo_tts_request(mimo_director, mimo_speech)
+
+            elif tts_engine == "cosyvoice":
                 url = llm_brain.config.get("cosy_url", "")
                 payload = {
                     "text": clean_text,
@@ -1162,6 +1414,10 @@ async def romasha_endpoint(websocket: WebSocket):
                     clean_text = re.sub(r'\[.*?\]', '', state["accumulated_text"])
                     clean_text = re.sub(r'^.*?<\|endofprompt\|>', '', clean_text)
                     final_clean_text = re.sub(r'\[[^\]]*$', '', clean_text).strip()
+                                          
+                    final_clean_text = re.sub(r'<\|mimo_dir\|>.*?<\|mimo_end\|>', '', final_clean_text, flags=re.DOTALL)
+                                                        
+                    final_clean_text = re.sub(r'\((?!内心)[^)]{1,20}\)', '', final_clean_text).strip()
 
                     if voice_enabled:
                                                                                
@@ -1187,7 +1443,9 @@ async def romasha_endpoint(websocket: WebSocket):
                                                             
                                           
                 if state["accumulated_text"].strip() and not state["cancel_flag"]:
-                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🌸 Romasha: {state['accumulated_text']}")
+                    print_text = re.sub(r'<\|mimo_dir\|>.*?<\|mimo_end\|>', '', state['accumulated_text'],
+                                        flags=re.DOTALL)
+                    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] 🌸 Romasha: {print_text}")
 
                     if voice_enabled:
                         audio_base64, success, status = await process_tts(state["accumulated_text"])
@@ -1432,6 +1690,7 @@ async def romasha_endpoint(websocket: WebSocket):
                         r'\[(act_|mood_|wear_|hair_|sys_chapter_up|move_to_|set_name_|intimacy_).*?\]', '',
                         display_text, flags=re.IGNORECASE)
                     display_text = display_text.replace("[sys_chapter_up]", "")             
+                    display_text = re.sub(r'<\|mimo_dir\|>.*?<\|mimo_end\|>', '', display_text, flags=re.DOTALL)
 
                                                       
                 say_matches = re.findall(r'\[say:\s*"(.*?)"\]', full_reply, re.DOTALL)
@@ -1806,7 +2065,7 @@ async def romasha_endpoint(websocket: WebSocket):
                     else:
                         print(f"\n💭 [感官羁绊]: 环境变得嘈杂，你只能通过她的眼神和口型来理解她。")
                         bubble_desc = "周围有些吵闹，你默默注视着她..."
-                elif val in ["cosyvoice", "sovits"]:
+                elif val in ["cosyvoice", "sovits", "mimo"]:
                     llm_brain.config["tts_engine"] = val
                     llm_brain.config["voice_enabled"] = True
                     llm_brain.save_config()

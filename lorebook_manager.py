@@ -8,6 +8,7 @@ import requests
 from openai import OpenAI
 
 import map_manager
+from api_router import chat_once
 
 _lore_lock = threading.Lock()
 
@@ -267,6 +268,7 @@ def update_lorebook_background(recent_history, config):
             )
 
             messages = [{"role": "user", "content": prompt}]
+            '''
             api_type = config.get("api_type", "openai").lower()
             target_model = config.get("target_model", "")
             result_text = ""
@@ -285,6 +287,25 @@ def update_lorebook_background(recent_history, config):
                 resp = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
                 if resp.status_code == 200:
                     result_text = resp.json().get("message", {}).get("content", "").strip()
+            '''
+                                                                   
+                          
+                                                                   
+                       
+                                          
+                            
+             
+                              
+                               
+                                                                   
+            result_text = chat_once(
+                config=config,
+                messages=messages,
+                temperature=0.1,
+                timeout=60.0,
+                use_background=True,
+                purpose="lorebook_updater"
+            )
 
                              
             try:
@@ -303,12 +324,12 @@ def update_lorebook_background(recent_history, config):
                     updated_count = 0
 
                     for k, v in updates.items():
-
+                                                                      
                         valid_suffixes = ["_人物", "_道具", "_地点", "_组织", "_怪物", "_事件", "_机制"]
                         is_new_valid_entity = any(suffix in k for suffix in valid_suffixes)
 
                                                                     
-                        if k in safe_lore or "称呼" in k or is_new_valid_entity:
+                        if k in safe_lore or "称呼" in k or is_new_valid_entity:                       
                                          
                                                                           
                                                   

@@ -20,6 +20,7 @@ import threading
 import hashlib
 import requests
 from openai import OpenAI
+from api_router import chat_once
 
 
                                                               
@@ -858,6 +859,7 @@ def update_relationship_from_dialogue_background(recent_history, config):
 {dialogue_text}
 """
 
+            '''
             api_type = config.get("api_type", "openai").lower()
             target_model = config.get("target_model", "")
             result_text = ""
@@ -893,6 +895,26 @@ def update_relationship_from_dialogue_background(recent_history, config):
                 r = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
                 if r.status_code == 200:
                     result_text = r.json().get("message", {}).get("content", "").strip()
+            '''
+                                                                   
+                          
+                                                                   
+                      
+                      
+                            
+                                 
+             
+                                
+                                      
+                                                                   
+            result_text = chat_once(
+                config=config,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                timeout=60.0,
+                use_background=True,
+                purpose="relationship_extractor"
+            )
 
             m = re.search(r'\{[\s\S]*\}', result_text)
             if not m:

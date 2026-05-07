@@ -17,6 +17,10 @@ import story_manager
 import lorebook_manager                   
 import map_manager                
 import relationship_manager
+from api_router import (
+    create_openai_client,
+    chat_once
+)
 
                               
 if getattr(sys, 'frozen', False):
@@ -30,15 +34,21 @@ CONFIG_FILE = os.path.join(app_dir, "config.json")
 def load_config():
     default_config = {
         "api_type": "openai",                               
-        "api_key": "您的密匙",
-        "base_url": "您的模型接口",
-        "target_model": "gpt-5.4",
+        "api_key": "api",
+        "base_url": "url",
+        "target_model": "gpt-5.4",                                                      
+        "api_timeout": 120.0,                                                     
+        "background_use_separate": True,
+        "background_api_type": "openai",
+        "background_api_key": "api",
+        "background_base_url": "url",
+        "background_target_model": "deepseek-v4-lite-expert",
+        "background_api_timeout": 60.0,
         "intimacy": 0,                
         "player_name": "",                            
         "current_location": "罗玛莎的房间门口",              
         "current_chapter": 1,                   
-        "is_first_encounter": True,                     
-                         
+        "is_first_encounter": True,                                        
         "scale": 0.5,
         "pos_x": -1,                       
         "pos_y": 200,
@@ -67,7 +77,13 @@ def load_config():
                              
         "cosy_url": "http://127.0.0.1:9880/api/tts",
         "cosy_character": "Romasha",                                      
-        "cosy_mode": "指令控制"                      
+        "cosy_mode": "指令控制",                      
+                                         
+        "mimo_tts_api_key": "sk-c6cd6ibwhbz4e8p4lk3yj0si826abz8uo7li9x4cu7zhdfwd",                                                  
+        "mimo_tts_base_url": "https://api.xiaomimimo.com/v1",
+        "mimo_tts_model": "mimo-v2.5-tts-voiceclone",          
+        "mimo_tts_ref_audio": "E:/Game/Romasha_Voice/full5_356_demo.wav",                                    
+        "mimo_tts_ref_format": "wav"                     
     }
 
                        
@@ -165,7 +181,8 @@ def extract_forced_location_from_user_text(text):
       
 config = load_config()
 
-       
+'''
+# 酒馆伪装头
 SILLY_HEADERS = {
     "User-Agent": "SillyTavern/1.12.0",
     "Referer": "http://localhost:8000/",
@@ -173,13 +190,31 @@ SILLY_HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
-                         
+# 🚨 修改：使用配置初始化 OpenAI 客户端
 client = OpenAI(
     api_key=config.get("api_key", ""),
     base_url=config.get("base_url", ""),
     default_headers=SILLY_HEADERS,
-    timeout=120.0                                          
+    timeout=120.0  # 🚨 核心修复 1：增加 120 秒超时限制！防止代理接口假死导致无限排队等待
 )
+'''
+                                                              
+          
+                                                              
+       
+                      
+                     
+                                                          
+               
+                                                              
+client = None
+if config.get("api_type", "openai").lower() == "openai":
+    client = create_openai_client(
+        config=config,
+        use_background=False,
+        timeout=float(config.get("api_timeout", 120.0))
+    )
+
 TARGET_MODEL = config.get("target_model", "")
 
 
@@ -251,6 +286,7 @@ def flush_stale_recent_chat_to_summary():
         )
 
         messages = [{"role": "user", "content": append_prompt}]
+        '''
         api_type = config.get("api_type", "openai").lower()
         compressed_entry = ""
 
@@ -280,6 +316,27 @@ def flush_stale_recent_chat_to_summary():
             resp = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
             if resp.status_code == 200:
                 compressed_entry = resp.json().get("message", {}).get("content", "").strip()
+        '''
+                                                               
+                   
+                                                               
+                                                   
+               
+                
+                  
+                          
+         
+                         
+                                     
+                                                               
+        compressed_entry = chat_once(
+            config=config,
+            messages=messages,
+            temperature=0.3,
+            timeout=60.0,
+            use_background=True,
+            purpose="flush_stale_recent_chat_to_summary"
+        )
 
         if not compressed_entry:
                                                                 
@@ -360,6 +417,50 @@ def stream_chat_generator(user_text, interrupted_text=""):
                    
     memories = memory_manager.retrieve_relevant_memories(user_text, current_intimacy)
 
+                                                                              
+                                    
+                                                                              
+                                                
+                                               
+                                                                              
+    SHOW_MEMORY_DEBUG = False                       
+
+    if SHOW_MEMORY_DEBUG:
+        debug_memories = memory_manager.retrieve_memories_with_debug(
+            user_text, current_intimacy, n_results=3
+        )
+        print("\n" + "═" * 70)
+        print(f"🧠 【海马体检索报告】")
+        print(f"📝 当前输入: {user_text[:80]}{'...' if len(user_text) > 80 else ''}")
+        print(f"💗 当前亲密度: {current_intimacy}/100")
+        print(f"🎯 检索条数: {len(debug_memories)} 条")
+        print("═" * 70)
+
+        if debug_memories:
+            for idx, m in enumerate(debug_memories, start=1):
+                                                   
+                                                      
+                dist = m['distance']
+                if dist < 0.8:
+                    relevance = "🔥 强相关"
+                elif dist < 1.2:
+                    relevance = "✨ 中相关"
+                else:
+                    relevance = "💨 弱相关"
+
+                print(f"\n【回忆 #{idx}】 {relevance} (距离值: {dist:.4f})")
+                print(f"  ⏰ 存储时间: {m['time']}")
+                print(f"  💗 当时亲密度: {m['past_intimacy']} ({m['past_desc']})")
+                print(f"  📖 内容:")
+                             
+                indented = "\n".join("     " + line for line in m['doc'].split("\n"))
+                print(indented)
+        else:
+            print("💭 【海马体静默】: 本轮没有检索到相关的过往回忆。")
+
+        print("═" * 70 + "\n")
+                                                                              
+
                      
     motions_list_str = ""
     for act_key, act_info in motion_manager.MOTIONS.items():
@@ -409,9 +510,15 @@ def stream_chat_generator(user_text, interrupted_text=""):
                                                 
     is_voice_on = config.get("voice_enabled", True)
     tts_engine = config.get("tts_engine", "cosyvoice")
-    use_cosyvoice = is_voice_on and (tts_engine == "cosyvoice")
+                   
+    if is_voice_on and tts_engine == "cosyvoice":
+        tts_mode = "cosyvoice"
+    elif is_voice_on and tts_engine == "mimo":
+        tts_mode = "mimo"
+    else:
+        tts_mode = "none"
 
-    dynamic_system_prompt = f"{persona.get_romasha_prompt(use_cosyvoice)}\n\n"
+    dynamic_system_prompt = f"{persona.get_romasha_prompt(tts_mode)}\n\n"
     dynamic_system_prompt += f"【玩家羁绊与人物关系基底】\n{world_info.get_full_lore()}\n\n"
 
                                            
@@ -627,10 +734,10 @@ def stream_chat_generator(user_text, interrupted_text=""):
     messages = [{"role": "system", "content": dynamic_system_prompt}]
     messages.extend(api_chat_history)
     messages.append({"role": "user", "content": injected_user_text})
-    #print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
-    #print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"🧠 [Prompt长度监控] system_prompt字符数: {len(dynamic_system_prompt)}")
+    print(f"🧠 [Prompt长度监控] chat_history条数: {len(chat_history)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"🧠 [Prompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""
@@ -769,15 +876,16 @@ def update_story_summary_background(old_messages):
             )
 
             messages = [{"role": "user", "content": append_prompt}]
+            '''
             api_type = config.get("api_type", "openai").lower()
             new_diary_entry = ""
 
-                               
+            # 重新发起一次轻量级的 LLM 请求
             if api_type == "openai":
                 response = client.chat.completions.create(
                     model=TARGET_MODEL,
                     messages=messages,
-                    temperature=0.3               
+                    temperature=0.3  # 总结需要客观，温度调低
                 )
                 new_diary_entry = response.choices[0].message.content.strip()
             elif api_type == "ollama":
@@ -790,6 +898,22 @@ def update_story_summary_background(old_messages):
                 resp = requests.post(base_url, json=payload, headers=headers, timeout=60.0)
                 if resp.status_code == 200:
                     new_diary_entry = resp.json().get("message", {}).get("content", "").strip()
+            '''
+                                                               
+                        
+                                                               
+                                 
+                             
+                                    
+                                                               
+            new_diary_entry = chat_once(
+                config=config,
+                messages=messages,
+                temperature=0.3,
+                timeout=60.0,
+                use_background=True,
+                purpose="update_story_summary_background.append_diary"
+            )
 
             if not new_diary_entry:
                 return
@@ -807,17 +931,34 @@ def update_story_summary_background(old_messages):
                 print("\n🌀 [世界法则]: 记忆的画卷有些太长了，正在后台将久远的回忆化作朦胧的轮廓...")
 
                 decay_prompt = (
-                    "以下是一份非常长的陪伴日记。为了减轻记忆负担，请你进行【分层压缩】。\n"
-                    "要求：\n"
-                    "1. 将日记中【较早的部分】（大约前三分之二）压缩成一段 500 字左右的【久远的记忆】，保留核心感情发展和重大事件，丢失琐碎细节。\n"
-                    "2. 将日记中【最近的部分】（大约后三分之一的带时间戳的记录）原封不动地保留下来，作为【最近的经历】。\n"
-                    "3. 最终输出格式必须是：\n"
-                    "【久远的记忆】\n(你的概括)\n\n"
-                    "【最近的经历】\n(保留原始的几个时间戳日记)\n\n"
-                    f"原始日记内容：\n{updated_summary}"
+                    "你是一个记忆整理助手，负责模拟人脑的【遗忘曲线】。现在需要对一份陪伴日记进行【记忆衰减处理】。\n\n"
+                    "===== 输入说明 =====\n"
+                    "下方的日记内容【可能已经是之前压缩过的分层格式】（包含【久远的记忆】和【最近的经历】两部分），"
+                    "也可能是纯粹的时间戳流水账。无论是哪种，你都必须执行以下操作：\n\n"
+                    "===== 核心任务（记忆衰减，不是归档！）=====\n"
+                    "1. 【识别最新时间戳】：找出日记中【最后 8-12 条】带时间戳的原始记录，作为新的【最近的经历】原封不动保留。\n"
+                    "2. 【压缩其余所有内容】：除了上述最后 8-12 条，其余【所有内容】（包括原本的【久远的记忆】段落 + 中间段的时间戳记录）"
+                    "必须全部融合、压缩、改写成【一段不超过 600 字】的【久远的记忆】叙述散文。\n\n"
+                    "===== 严格禁令 =====\n"
+                    "❌ 禁止把输入里原有的【久远的记忆】段落原封不动复制过来——它必须和中段时间戳记录一起被【重新熔炼改写】。\n"
+                    "❌ 禁止保留超过 12 条时间戳记录到【最近的经历】里。\n"
+                    "❌ 禁止输出任何解释、前言、后记，只输出最终的两段式结果。\n"
+                    "❌ 【久远的记忆】严格控制在 600 字以内，超出即为失败。\n\n"
+                    "===== 衰减原则（模拟人脑遗忘）=====\n"
+                    "✅ 保留：核心感情发展脉络、重大关系转折点（如告白/结婚/重要承诺）、决定性事件、刻骨铭心的情感瞬间。\n"
+                    "✅ 丢失：具体对话细节、重复的撒娇互动、琐碎的日常片段、相似场景的重复描述（多次拥抱→概括为'无数次拥抱'）。\n"
+                    "✅ 熔炼：把多个相似的小事件合并成一句概括（例如十次揉脚→'那些深夜里反复发生的亲昵打闹'）。\n\n"
+                    "===== 输出格式（严格遵守）=====\n"
+                    "【久远的记忆】\n"
+                    "(一段不超过 600 字的叙述散文，熔炼了输入中【除最后 8-12 条时间戳外】的所有内容)\n\n"
+                    "【最近的经历】\n"
+                    "(原封不动保留输入中最后 8-12 条带时间戳的记录)\n\n"
+                    "===== 待处理的原始日记 =====\n"
+                    f"{updated_summary}"
                 )
 
                 messages_decay = [{"role": "user", "content": decay_prompt}]
+                '''
                 compressed_summary = ""
 
                 if api_type == "openai":
@@ -829,10 +970,31 @@ def update_story_summary_background(old_messages):
                     resp = requests.post(base_url, json=payload, headers=headers, timeout=120.0)
                     if resp.status_code == 200:
                         compressed_summary = resp.json().get("message", {}).get("content", "").strip()
+                '''
+                                                                   
+                           
+                                                                   
+                                      
+                          
+                          
+                 
+                                       
+                                
+                                                                   
+                compressed_summary = chat_once(
+                    config=config,
+                    messages=messages_decay,
+                    temperature=0.3,
+                    timeout=120.0,
+                    use_background=True,
+                    purpose="update_story_summary_background.decay_summary"
+                )
 
                 if compressed_summary:
                     story_manager.rewrite_summary(compressed_summary)
-                    print("✨ [世界法则]: 记忆凝练完成，曾经的细节已化作潜意识的情感基底。")
+                    compression_ratio = (1 - len(compressed_summary) / len(updated_summary)) * 100
+                    print(
+                        f"✨ [世界法则]: 记忆凝练完成，压缩率 {compression_ratio:.1f}%，曾经的细节已化作潜意识的情感基底。")
 
         except Exception as e:
             print(f"\n⚠️ [世界法则]: 剧情摘要凝结失败 ({e})")
@@ -845,7 +1007,7 @@ def update_story_summary_background(old_messages):
                  
                                             
 def get_story_prompt(participation_level, last_choice, current_time, current_outfit, current_hair, current_intimacy, motions_list,
-                     outfits_list, hairs_list, recent_summary, use_cosyvoice, recent_chats_text, memories, loc_lore, available_locs, chapter_lore, current_chapter):
+                     outfits_list, hairs_list, recent_summary, tts_mode, recent_chats_text, memories, loc_lore, available_locs, chapter_lore, current_chapter):
                                  
     player_name = config.get("player_name", "墨旅")
 
@@ -859,7 +1021,7 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
     current_level_desc = level_desc.get(int(participation_level), level_desc[1])
 
                                             
-    base_persona = persona.get_romasha_prompt(use_cosyvoice)
+    base_persona = persona.get_romasha_prompt(tts_mode)
     base_persona = base_persona.replace("你现在的身份是 Romasha (罗玛莎)",
                                         "【角色性格基底参考】：以下是女主角罗玛莎的性格设定")
     base_persona = re.sub(
@@ -874,10 +1036,24 @@ def get_story_prompt(participation_level, last_choice, current_time, current_out
     )
 
                           
-    if use_cosyvoice:
-        tts_rule = "严格使用 `[say: \"情绪前缀<|endofprompt|>台词正文\"]` 格式。例如：[say: \"使用慌乱且羞涩的少女音<|endofprompt|>别过来！\"]"
+    if tts_mode == "cosyvoice":
+        tts_rule = (
+            "严格使用 `[say: \"情绪前缀<|endofprompt|>台词正文\"]` 格式。"
+            "例如：[say: \"使用慌乱且羞涩的少女音<|endofprompt|>别过来！\"]"
+        )
+    elif tts_mode == "mimo":
+        tts_rule = (
+            "严格使用 `[say: \"<|mimo_dir|>导演指令<|mimo_end|>(风格标签)台词正文\"]` 格式。"
+            "导演指令用2-3句中文描述此刻罗玛莎说话时的声音状态（角色感受、场景氛围、语速/气息/咬字等演绎要领）。"
+            "风格标签用半角括号包裹1-3个情感关键词。台词中可以插入 [叹气]、[颤抖]、[轻笑]、[小声] 等中文音频标签。"
+            "例如：[say: \"<|mimo_dir|>角色：一个被突然靠近后慌乱退缩的少女。场景：对方凑得太近，她来不及反应。"
+            "指导：语速偏快带慌乱感，尾音微微上扬发颤。<|mimo_end|>(紧张 害羞)那个，[吸气]别过来！\"]"
+        )
     else:
-        tts_rule = "严格使用 `[say: \"台词正文\"]` 格式，绝对不要加任何情绪前缀！例如：[say: \"别过来！\"]"
+        tts_rule = (
+            "严格使用 `[say: \"台词正文\"]` 格式，绝对不要加任何情绪前缀！"
+            "例如：[say: \"别过来！\"]"
+        )
 
                     
     full_lore = world_info.get_full_lore()
@@ -1024,7 +1200,12 @@ def stream_story_with_romasha(level, user_choice_text):
                   
     is_voice_on = config.get("voice_enabled", True)
     tts_engine = config.get("tts_engine", "cosyvoice")
-    use_cosyvoice = is_voice_on and (tts_engine == "cosyvoice")
+    if is_voice_on and tts_engine == "cosyvoice":
+        tts_mode = "cosyvoice"
+    elif is_voice_on and tts_engine == "mimo":
+        tts_mode = "mimo"
+    else:
+        tts_mode = "none"
 
                                   
     recent_chats = chat_history[-6:] if len(chat_history) > 6 else chat_history
@@ -1040,16 +1221,16 @@ def stream_story_with_romasha(level, user_choice_text):
                  
     system_prompt = get_story_prompt(
         level, user_choice_text, current_time_str, current_outfit, current_hair, current_intimacy,
-        motions_list_str, outfits_list_str, hairs_list_str, recent_summary, use_cosyvoice, recent_chats_text,
+        motions_list_str, outfits_list_str, hairs_list_str, recent_summary, tts_mode, recent_chats_text,
         memories, loc_lore, available_locs, chapter_lore, current_chapter
     )
 
     messages = [{"role": "system", "content": system_prompt}]
                       
                                                                                   
-    #print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
-    #total_chars = sum(len(m.get("content", "")) for m in messages)
-    #print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
+    print(f"📖 [StoryPrompt长度监控] system_prompt字符数: {len(system_prompt)}")
+    total_chars = sum(len(m.get("content", "")) for m in messages)
+    print(f"📖 [StoryPrompt长度监控] 本轮总messages字符数: {total_chars}")
 
     try:
         full_reply = ""

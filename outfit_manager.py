@@ -60,7 +60,8 @@ def get_outfit_params(outfit_name, hair_style=None):
             params_to_apply["hearchange"] = HAIRSTYLES[_current_hair]
         else:
                                          
-            if _current_hair is None or is_new_outfit:
+                                                       
+            if _current_hair is None:
                 _current_hair = random.choices(["loose", "bun"], weights=[85, 15], k=1)[0]
 
                                          
@@ -75,3 +76,29 @@ def get_outfit_params(outfit_name, hair_style=None):
             _current_hair = "loose"
 
     return params_to_apply
+
+def restore_state(outfit_name=None, hair_name=None):
+
+
+
+
+
+    global _current_outfit, _current_hair
+
+    if outfit_name in OUTFITS:
+        _current_outfit = outfit_name
+    else:
+        _current_outfit = None
+
+    if hair_name in HAIRSTYLES:
+        _current_hair = hair_name
+    else:
+        _current_hair = None
+
+
+def export_state():
+
+    return {
+        "outfit": _current_outfit or "",
+        "hair": _current_hair or ""
+    }
